@@ -1,10 +1,7 @@
 import { StyleSheet } from 'react-native';
 
 const styles = StyleSheet.create({
-//   container: {
-//     flex: 1,
-//     backgroundColor: '#f4f4f4',
-//   },
+
   fileList: {
     flex: 1,
     marginVertical: 10,
@@ -243,6 +240,31 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#666',
     marginTop: 5,
+  },
+
+  audioPlayerContainer: {
+    backgroundColor: '#333',
+    padding: 20,
+    borderRadius: 10,
+    alignItems: 'center',
+    height: 800
+  },
+  audioPlayerTitle: {
+    color: 'white',
+    fontSize: 18,
+    marginBottom: 10,
+  },
+  videoPlayerContainer: {
+    backgroundColor: '#333',
+    padding: 20,
+    borderRadius: 10,
+    alignItems: 'center',
+    width: '90%',
+    height: 300,
+  },
+  videoPlayer: {
+    width: '100%',
+    height: '100%',
   },
 });
 
