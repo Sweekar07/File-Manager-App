@@ -1,7 +1,8 @@
 // src/components/HomeScreen.tsx
 
 import React, { useEffect, useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, ProgressBarAndroid } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity } from 'react-native';
+import { ProgressBar } from 'react-native-paper';
 import Icon from 'react-native-vector-icons/FontAwesome';
 import RNFS from 'react-native-fs';
 import styles from '../styles/styles';
@@ -35,6 +36,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   const countFilesByCategory = async () => {
     try {
       const directoryPath = RNFS.ExternalStorageDirectoryPath;
+      console.log(`Reading directory: ${directoryPath}`);
       const pathExists = await RNFS.exists(directoryPath);
       if (!pathExists) {
         console.error(`Directory does not exist: ${directoryPath}`);
@@ -93,7 +95,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
           <Text style={styles.storageUsed}>{usedSpace} GB</Text>
           <Text style={styles.storageTotal}>{totalSpace} GB</Text>
         </View>
-        <ProgressBarAndroid styleAttr="Horizontal" color="green" indeterminate={false} progress={usedSpace / totalSpace} style={styles.progressBar} />
+        <ProgressBar progress={usedSpace / totalSpace} color="green" />
       </View>
       <View style={styles.categoriesContainer}>
         {categories.map((category, index) => (

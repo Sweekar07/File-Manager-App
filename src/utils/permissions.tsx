@@ -11,11 +11,10 @@ export const requestStoragePermission = async () => {
           PERMISSIONS.ANDROID.READ_MEDIA_IMAGES,
           PERMISSIONS.ANDROID.READ_MEDIA_VIDEO,
           PERMISSIONS.ANDROID.READ_MEDIA_AUDIO,
-          PERMISSIONS.ANDROID.READ_EXTERNAL_STORAGE,
         ];
         const results = await Promise.all(permissions.map((permission) => request(permission)));
 
-        if (results.some(result => result === RESULTS.GRANTED)) {
+        if (results.every(result => result === RESULTS.GRANTED)) {
           return true;
         } else {
           Alert.alert(
