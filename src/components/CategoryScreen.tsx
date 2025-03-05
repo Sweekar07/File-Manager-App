@@ -11,6 +11,7 @@ import AudioPlayerModal from './AudioPlayerModal';
 import VideoPlayerModal from './VideoPlayerModal';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import ImageViewing from 'react-native-image-viewing';
+import BottomSheet from './BottomSheet';
 
 interface File {
   name: string;
@@ -547,55 +548,49 @@ const CategoryScreen: React.FC<CategoryScreenProps> = ({ route, navigation }) =>
       )}
       
       {/* File Details Modal */}
-      <Modal 
-        visible={isDetailsVisible} 
-        animationType="slide" 
-        transparent={true} 
-        onRequestClose={closeDetailsModal}
+      <BottomSheet
+        visible={isDetailsVisible}
+        onDismiss={closeDetailsModal}
+        height={600}
+        containerStyle={styles.fileDetailsBottomSheet}
       >
-        <Pressable style={styles.modalOverlay} onPress={closeDetailsModal}>
-          <View style={styles.detailsContent}>
-            <View style={styles.header}>
-              <TouchableOpacity style={styles.closeButton} onPress={closeDetailsModal}>
-                <Text style={styles.closeButtonText}>Close</Text>
-              </TouchableOpacity>
-              <Text style={styles.headerTitle}>Details</Text>
-              <View style={styles.placeholder} />
-            </View>
-            <ScrollView 
-              style={styles.scrollableContent} 
-              contentContainerStyle={styles.scrollContentContainer}
-            >
-              <View style={styles.detailsContainer}>
-                <View style={styles.detailsSection}>
-                  <Text style={styles.sectionLabel}>Name</Text>
-                  <Text style={styles.sectionValue}>{fileDetails?.fileName}</Text>
-                </View>
-                <View style={styles.horizontalBar} />
-                <View style={styles.detailsSection}>
-                  <Text style={styles.sectionLabel}>Time</Text>
-                  <Text style={styles.sectionValue}>{fileDetails?.lastModified}</Text>
-                </View>
-                <View style={styles.horizontalBar} />
-                <View style={styles.detailsSection}>
-                  <Text style={styles.sectionLabel}>Dimensions</Text>
-                  <Text style={styles.sectionValue}>{fileDetails?.dimensions}</Text>
-                </View>
-                <View style={styles.horizontalBar} />
-                <View style={styles.detailsSection}>
-                  <Text style={styles.sectionLabel}>Size</Text>
-                  <Text style={styles.sectionValue}>{fileDetails?.size} MB</Text>
-                </View>
-                <View style={styles.horizontalBar} />
-                <View style={styles.detailsSection}>
-                  <Text style={styles.sectionLabel}>Path</Text>
-                  <Text style={styles.sectionValue}>{fileDetails?.filePath}</Text>
-                </View>
-              </View>
-            </ScrollView>
+        <ScrollView 
+          style={styles.scrollableContent} 
+          contentContainerStyle={styles.scrollContentContainer}
+        >
+          <View style={styles.header}>
+            <Text style={styles.headerTitle}>Details</Text>
           </View>
-        </Pressable>
-      </Modal>
+          <View style={styles.detailsContainer}>
+            <View style={styles.detailsSection}>
+              <Text style={styles.sectionLabel}>Name</Text>
+              <Text style={styles.sectionValue}>{fileDetails?.fileName}</Text>
+            </View>
+            <View style={styles.horizontalBar} />
+            <View style={styles.detailsSection}>
+              <Text style={styles.sectionLabel}>Time</Text>
+              <Text style={styles.sectionValue}>{fileDetails?.lastModified}</Text>
+            </View>
+            <View style={styles.horizontalBar} />
+            <View style={styles.detailsSection}>
+              <Text style={styles.sectionLabel}>Dimensions</Text>
+              <Text style={styles.sectionValue}>{fileDetails?.dimensions}</Text>
+            </View>
+            <View style={styles.horizontalBar} />
+            <View style={styles.detailsSection}>
+              <Text style={styles.sectionLabel}>Size</Text>
+              <Text style={styles.sectionValue}>{fileDetails?.size} MB</Text>
+            </View>
+            <View style={styles.horizontalBar} />
+            <View style={styles.detailsSection}>
+              <Text style={styles.sectionLabel}>Path</Text>
+              <Text style={styles.sectionValue} numberOfLines={2} ellipsizeMode="middle">
+                {fileDetails?.filePath}
+              </Text>
+            </View>
+          </View>
+        </ScrollView>
+      </BottomSheet>
 
       {fileType === 'audio' && selectedFile && (
         <AudioPlayerModal 

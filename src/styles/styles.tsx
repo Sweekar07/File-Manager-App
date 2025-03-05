@@ -86,21 +86,18 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   dragHandle: {
-    alignSelf: 'center',
-    width: 50,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: '#ddd',
-    marginVertical: 15,
+    width: 40, 
+    height: 5, 
+    backgroundColor: '#E0E0E0', 
+    alignSelf: 'center', 
+    borderRadius: 2.5,
+    marginBottom: 10
   },
   header: {
-    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 25,
     paddingVertical: 15,
     borderBottomWidth: 1,
-    borderBottomColor: '#eee',
+    borderBottomColor: '#E0E0E0',
   },
   headerTitle: {
     fontSize: 20,
@@ -116,10 +113,6 @@ const styles = StyleSheet.create({
   },
   placeholder: {
     width: 60, // Placeholder to align header elements
-  },
-  scrollableContent: {
-    paddingHorizontal: 25,
-    paddingBottom: 25,
   },
   scrollContentContainer: {
     paddingBottom: 30,
@@ -301,7 +294,28 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#666',
     marginTop: 2,
-  }
+  },
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  fileDetailsBottomSheet: {
+    backgroundColor: 'white',
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    shadowColor: '#000',
+    shadowOffset: {
+      width: 0,
+      height: -2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
+  },
+  scrollableContent: {
+    flex: 1,
+  },
 });
 
 export default styles;
