@@ -4,10 +4,6 @@ const { height } = Dimensions.get('window');
 
 const styles = StyleSheet.create({
 
-  fileList: {
-    flex: 1,
-    marginVertical: 10,
-  },
   fileItem: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -22,17 +18,12 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
   },
-  imageIcon: {
-    width: 70,
-    height: 70,
-    borderRadius: 10,
-    marginRight: 15,
-  },
   fileName: {
     flex: 1,
     fontSize: 18,
     fontWeight: '600',
     color: '#444',
+    paddingLeft: 10,
   },
   noFiles: {
     textAlign: 'center',
@@ -294,6 +285,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#666',
     marginTop: 2,
+    paddingLeft: 10,
   },
   overlay: {
     flex: 1,
