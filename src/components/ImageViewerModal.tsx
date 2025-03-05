@@ -181,7 +181,8 @@ const ImageViewerModal: React.FC<ImageViewerModalProps> = ({ visible, images, in
                 <Icon name="info-circle" size={30} color="white" />
               </TouchableOpacity>
             </View>
-            <Text style={styles.imageTitleName}>{images[imageIndex].uri.split('/').pop()}</Text>
+            <Text style={styles.imageTitleName}  numberOfLines={1} ellipsizeMode="tail">
+              {images[imageIndex].uri.split('/').pop()}</Text>
             <TouchableOpacity style={styles.closeIconContainer} onPress={closeModal}>
               <Icon name="close" size={30} color="white" />
             </TouchableOpacity>

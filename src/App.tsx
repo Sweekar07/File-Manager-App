@@ -11,7 +11,9 @@ import CategoryScreen from './components/CategoryScreen';
 // Type Definitions
 type RootStackParamList = {
   HomeScreen: undefined;
-  CategoryScreen: { title: string };
+  CategoryScreen: { 
+    title: 'Photos' | 'Audio' | 'Videos' | 'Documents' | 'APKs' | 'Archives';
+  };
 };
 
 // Create Stack Navigator

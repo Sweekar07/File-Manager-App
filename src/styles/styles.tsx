@@ -1,4 +1,6 @@
-import { StyleSheet } from 'react-native';
+import { StyleSheet, Dimensions } from 'react-native';
+
+const { height } = Dimensions.get('window');
 
 const styles = StyleSheet.create({
 
@@ -50,6 +52,8 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 18,
     fontWeight: '600',
+    flex: 1,
+    textAlign: 'center'
   },
   closeIconContainer: {
     alignItems: 'flex-end',
@@ -277,6 +281,27 @@ const styles = StyleSheet.create({
     width: '100%',
     height: '100%',
   },
+
+  // Add these to your styles.js file if they don't exist
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 16,
+  },
+  folderInfoContainer: {
+    flex: 1,
+    flexDirection: 'column',
+    justifyContent: 'center',
+  },
+  fileCount: {
+    fontSize: 12,
+    color: '#666',
+    marginTop: 2,
+  }
 });
 
 export default styles;
