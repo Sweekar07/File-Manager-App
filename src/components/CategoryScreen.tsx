@@ -5,7 +5,7 @@ import { View, Text, TouchableOpacity, FlatList, ActivityIndicator, Image, Press
 import Icon from 'react-native-vector-icons/FontAwesome';
 import RNFS from 'react-native-fs';
 import styles from '../styles/styles';
-import { requestStoragePermission } from '../utils/permissions';
+import { checkPermissions } from '../utils/permissions';
 import ImageViewerModal from './ImageViewerModal';
 import AudioPlayerModal from './AudioPlayerModal';
 import VideoPlayerModal from './VideoPlayerModal';
@@ -164,7 +164,7 @@ const CategoryScreen: React.FC<CategoryScreenProps> = ({ route, navigation }) =>
       return cachedFolders;
     }
 
-    const hasPermission = await requestStoragePermission();
+    const hasPermission = await checkPermissions();
     if (!hasPermission) {
       setLoading(false);
       return;

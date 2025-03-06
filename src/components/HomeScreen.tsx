@@ -1,12 +1,13 @@
 // src/components/HomeScreen.tsx
 
-import React, { useEffect, useState , useCallback} from 'react';
-import { View, Text, TextInput, TouchableOpacity, ScrollView, RefreshControl } from 'react-native';
+import React, { useEffect, useState, useCallback } from 'react';
+import { View, Text, TextInput, TouchableOpacity, ScrollView, RefreshControl, ActivityIndicator } from 'react-native';
 import { ProgressBar } from 'react-native-paper';
 import Icon from 'react-native-vector-icons/FontAwesome';
 import RNFS from 'react-native-fs';
 import styles from '../styles/styles';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { requestAllFilePermissions, checkPermissions, getCachedPermissionStatus  } from '../utils/permissions';
 
 interface HomeScreenProps {
   navigation: any;
@@ -32,16 +33,75 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   ]);
 
   const [refreshing, setRefreshing] = useState(false);
+  const [permissionsGranted, setPermissionsGranted] = useState<boolean | null>(null);
+
+  // Check cached permission status immediately on component mount
+  useEffect(() => {
+    const checkCachedPermissions = async () => {
+      const cachedStatus = await getCachedPermissionStatus();
+      if (cachedStatus === true) {
+        // If we have a cached "true" status, immediately set permissions granted
+        setPermissionsGranted(true);
+        // Then start loading data
+        calculateStorageUsage();
+        countFilesByCategory();
+      }
+      // If cachedStatus is false or null, we'll wait for the full check
+    };
+    
+    checkCachedPermissions();
+  }, []);
+
+  // Request permissions on app start
+  useEffect(() => {
+    const handlePermissions = async () => {
+      // First check if permissions are already granted
+      const alreadyGranted = await checkPermissions();
+      
+      setPermissionsGranted(alreadyGranted);
+      
+      if (alreadyGranted) {
+        // If permissions are already granted, no need to request
+        calculateStorageUsage();
+        countFilesByCategory();
+      } else {
+        // Only request permissions if not already granted
+        const granted = await requestAllFilePermissions();
+        setPermissionsGranted(granted);
+        
+        if (granted) {
+          // Only load data if permissions are granted
+          calculateStorageUsage();
+          countFilesByCategory();
+        } else {
+          // Set default values for categories if permissions not granted
+          const updatedCategories = categories.map(category => ({
+            ...category,
+            count: 'No access'
+          }));
+          setCategories(updatedCategories);
+        }
+      }
+    };
+    
+    handlePermissions();
+  }, []);
 
   const calculateStorageUsage = async () => {
     try {
+      // First check if permissions are granted
+      const hasPermission = await checkPermissions();
+      if (!hasPermission) {
+        return;
+      }
+
       // Check if cached storage info exists
       const cachedStorageInfo = await AsyncStorage.getItem('storageInfo');
       const currentTime = Date.now();
 
       if (cachedStorageInfo) {
         const { totalSpace: cachedTotal, usedSpace: cachedUsed, timestamp } = JSON.parse(cachedStorageInfo);
-        
+
         // Use cached data if it's less than 1 hour old
         if (currentTime - timestamp < 3600000) {
           setTotalSpace(cachedTotal);
@@ -61,8 +121,8 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
         usedSpace: freshUsedSpace,
         timestamp: currentTime
       }));
-      setTotalSpace(freshTotalSpace); 
-      setUsedSpace(freshUsedSpace); 
+      setTotalSpace(freshTotalSpace);
+      setUsedSpace(freshUsedSpace);
     } catch (error) {
       console.error('Error retrieving storage info:', error);
     }
@@ -70,6 +130,13 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
 
   const countFilesByCategory = async () => {
     try {
+
+      // First check if permissions are granted
+      const hasPermission = await checkPermissions();
+      if (!hasPermission) {
+        return categories;
+      }
+
       const directoryPath = RNFS.ExternalStorageDirectoryPath;
       const cachedFileCounts = await AsyncStorage.getItem('fileCounts');
       const currentTime = Date.now();
@@ -129,14 +196,32 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
-      // Clear cached data
-      await AsyncStorage.multiRemove(['storageInfo', 'fileCounts']);
-      
-      // Recalculate storage and file counts
-      await Promise.all([
-        calculateStorageUsage(),
-        countFilesByCategory()
-      ]);
+      // Check permissions first
+      const hasPermission = await checkPermissions();
+      setPermissionsGranted(hasPermission);
+
+      if (hasPermission) {
+        // Clear cached data
+        await AsyncStorage.multiRemove(['storageInfo', 'fileCounts']);
+
+        // Recalculate storage and file counts
+        await Promise.all([
+          calculateStorageUsage(),
+          countFilesByCategory()
+        ]);
+      } else {
+        // Request permissions again if they're not granted
+        const granted = await requestAllFilePermissions();
+        setPermissionsGranted(granted);
+
+        if (granted) {
+          // Recalculate if newly granted
+          await Promise.all([
+            calculateStorageUsage(),
+            countFilesByCategory()
+          ]);
+        }
+      }
     } catch (error) {
       console.error('Refresh error:', error);
     } finally {
@@ -144,18 +229,47 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     }
   }, []);
 
-  useEffect(() => {
-    calculateStorageUsage();
-    countFilesByCategory();
-  }, []);
+  // Handle permission denied state
+  const renderPermissionDeniedView = () => (
+    <View style={styles.container}>
+      <Text style={styles.title}>Files</Text>
+      <View style={styles.permissionDenied}>
+        <Icon name="exclamation-triangle" size={50} color="#888" />
+        <Text style={styles.permissionText}>Storage permission required</Text>
+        <TouchableOpacity
+          style={styles.permissionButton}
+          onPress={async () => {
+            const granted = await requestAllFilePermissions();
+            setPermissionsGranted(granted);
+            if (granted) {
+              calculateStorageUsage();
+              countFilesByCategory();
+            }
+          }}
+        >
+          <Text style={styles.permissionButtonText}>Grant Permissions</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
 
-  useEffect(() => {
-    calculateStorageUsage();
-    countFilesByCategory();
-  }, []);
+  // Show loading view while checking permissions
+  if (permissionsGranted === null) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <Text style={styles.title}>Files</Text>
+        <ActivityIndicator size="large" color="green" style={{ marginTop: 20 }} />
+      </View>
+    );
+  }
+
+  // Return permission denied view if permissions explicitly not granted
+  if (permissionsGranted === false) {
+    return renderPermissionDeniedView();
+  }
 
   return (
-    <ScrollView 
+    <ScrollView
       style={styles.container}
       refreshControl={
         <RefreshControl
@@ -181,9 +295,9 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
       </View>
       <View style={styles.categoriesContainer}>
         {categories.map((category, index) => (
-          <TouchableOpacity 
-            style={styles.categoryBox} 
-            key={index} 
+          <TouchableOpacity
+            style={styles.categoryBox}
+            key={index}
             onPress={() => navigation.navigate('CategoryScreen', { title: category.name })}
           >
             <Icon name={category.icon} size={30} color="#666" />

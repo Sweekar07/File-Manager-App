@@ -308,6 +308,32 @@ const styles = StyleSheet.create({
   scrollableContent: {
     flex: 1,
   },
+
+  permissionDenied: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+    marginTop: 50,
+  },
+  permissionText: {
+    fontSize: 18,
+    textAlign: 'center',
+    marginVertical: 20,
+    color: '#333',
+  },
+  permissionButton: {
+    backgroundColor: 'green',
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 5,
+    marginTop: 10,
+  },
+  permissionButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
 });
 
 export default styles;
