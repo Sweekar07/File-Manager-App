@@ -1,6 +1,6 @@
 import { StyleSheet, Dimensions } from 'react-native';
 
-const { height } = Dimensions.get('window');
+const {height: SCREEN_HEIGHT } = Dimensions.get('window')
 
 const styles = StyleSheet.create({
 
@@ -44,7 +44,9 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
     flex: 1,
-    textAlign: 'center'
+    // textAlign: 'center',
+    paddingLeft: 20,
+    paddingRight: 20
   },
   closeIconContainer: {
     alignItems: 'flex-end',
@@ -82,6 +84,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#E0E0E0', 
     alignSelf: 'center', 
     borderRadius: 2.5,
+    marginTop: 10,
     marginBottom: 10
   },
   header: {
@@ -288,9 +291,11 @@ const styles = StyleSheet.create({
     paddingLeft: 10,
   },
   overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'flex-end',
+    // flex: 1,
+    // backgroundColor: 'rgba(0,0,0,0.5)',
+    // justifyContent: 'flex-end',
+      ...StyleSheet.absoluteFillObject,
+      backgroundColor: 'rgba(0, 0, 0, 0.5)',
   },
   fileDetailsBottomSheet: {
     backgroundColor: 'white',
@@ -304,6 +309,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 3.84,
     elevation: 5,
+    paddingHorizontal: 20,
   },
   scrollableContent: {
     flex: 1,
@@ -334,6 +340,34 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
   },
+
+
+  bottomsheet_container: {
+    width: '100%',
+    height: SCREEN_HEIGHT,
+    backgroundColor: "white",
+    position: 'absolute',
+    top: SCREEN_HEIGHT / 1.5,
+    zIndex: 12000,
+    borderRadius: 25,
+    paddingHorizontal: 10
+},
+line: {
+    width: 75,
+    height: 4,
+    backgroundColor: 'black',
+    borderRadius: 20,
+    alignSelf: 'center',
+    marginVertical: 10,
+},  
+backdropContainer: {
+  position: 'absolute',
+  top: 0,
+  left: 0,
+  right: 0,
+  bottom: 0,
+  backgroundColor: 'rgba(0, 0, 0, 0.5)',
+},
 });
 
 export default styles;

@@ -1,7 +1,7 @@
 // src/components/CategoryScreen.tsx
 
 import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
-import { View, Text, TouchableOpacity, FlatList, ActivityIndicator, Image, Pressable, ScrollView, Modal } from 'react-native';
+import { View, Text, TouchableOpacity, FlatList, ActivityIndicator, Image, Pressable, ScrollView, Modal, StatusBar } from 'react-native';
 import Icon from 'react-native-vector-icons/FontAwesome';
 import RNFS from 'react-native-fs';
 import styles from '../styles/styles';
@@ -11,7 +11,8 @@ import AudioPlayerModal from './AudioPlayerModal';
 import VideoPlayerModal from './VideoPlayerModal';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import ImageViewing from 'react-native-image-viewing';
-import BottomSheet from './BottomSheet';
+import BottomsheetModal from './BottomSheet';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 interface File {
   name: string;
@@ -35,7 +36,8 @@ interface CategoryScreenProps {
 }
 
 // Constants
-const CACHE_EXPIRATION_TIME = 24 * 60 * 60 * 1000; // 24 hours
+// const CACHE_EXPIRATION_TIME = 24 * 60 * 60 * 1000; // 24 hours
+const CACHE_EXPIRATION_TIME = 30 * 1000; // 24 hours
 const MAX_FILES = 500;
 const SCAN_DEPTH_LIMIT = 2;
 const BASE_DIRECTORIES = {
@@ -154,7 +156,7 @@ const CategoryScreen: React.FC<CategoryScreenProps> = ({ route, navigation }) =>
     const cacheKey = `${title}_folders`;
 
     // Clear cache to ensure fresh data for different categories
-    // await AsyncStorage.removeItem(cacheKey);
+    await AsyncStorage.removeItem(cacheKey);
     
     // Check cached folders first
     const cachedFolders = await getCachedData(cacheKey);
@@ -325,7 +327,6 @@ const CategoryScreen: React.FC<CategoryScreenProps> = ({ route, navigation }) =>
     setSelectedFile(null);
     setFileType(null);
     setImageViewerVisible(false);
-
     setDetailsVisible(false);
   };
 
@@ -375,6 +376,7 @@ const CategoryScreen: React.FC<CategoryScreenProps> = ({ route, navigation }) =>
 
       // Open details modal
       setDetailsVisible(true);
+      console.log("is set details visitble: ", isDetailsVisible)
       } catch (error) {
         console.error('Error showing file details:', error);
       }
@@ -473,141 +475,159 @@ const CategoryScreen: React.FC<CategoryScreenProps> = ({ route, navigation }) =>
     }; 
 
   return (
-    <View style={styles.container}>
-      {/* <TouchableOpacity onPress={navigateBack} style={styles.backButton}>
-        <Icon name="arrow-left" size={25} color="#000" />
-        <Text style={styles.backText}>Back</Text>
-      </TouchableOpacity> */}
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <View style={styles.container}>
+        {/* <TouchableOpacity onPress={navigateBack} style={styles.backButton}>
+          <Icon name="arrow-left" size={25} color="#000" />
+          <Text style={styles.backText}>Back</Text>
+        </TouchableOpacity> */}
 
-      {renderContent}
+        {renderContent}
 
-      {/* {fileType === 'image' && selectedFile && (
-        <ImageViewerModal
-          visible={true}
-          images={files
-            .filter(file => file.type === 'image')
-            .map(file => ({ uri: `file://${file.path}` }))}
-          initialIndex={files
-            .filter(file => file.type === 'image')
-            .findIndex(file => `file://${file.path}` === selectedFile)}
-          onRequestClose={closeModal}
-        />
-      )} */}
-
-      {/* Advanced Image Viewer with Swipe and Header */}
-      {fileType === 'image' && isImageViewerVisible && (
-        <ImageViewing
-          images={files
-            .filter(file => file.type === 'image')
-            .map(file => ({ uri: `file://${file.path}` }))}
-          imageIndex={currentImageIndex}
-          visible={isImageViewerVisible}
-          onRequestClose={closeModal}
-          HeaderComponent={({ imageIndex }) => {
-            const currentFile = files
+        {/* {fileType === 'image' && selectedFile && (
+          <ImageViewerModal
+            visible={true}
+            images={files
               .filter(file => file.type === 'image')
-              [imageIndex];
+              .map(file => ({ uri: `file://${file.path}` }))}
+            initialIndex={files
+              .filter(file => file.type === 'image')
+              .findIndex(file => `file://${file.path}` === selectedFile)}
+            onRequestClose={closeModal}
+          />
+        )} */}
 
-            return (
-              <View style={styles.imageViewerHeader}>
+        {/* Advanced Image Viewer with Swipe and Header */}
+        {fileType === 'image' && isImageViewerVisible && (
+          <ImageViewing
+            images={files
+              .filter(file => file.type === 'image')
+              .map(file => ({ uri: `file://${file.path}` }))}
+            imageIndex={currentImageIndex}
+            visible={isImageViewerVisible}
+            onRequestClose={closeModal}
+            presentationStyle="fullScreen" // new
+            swipeToCloseEnabled={true} // new
+            HeaderComponent={({ imageIndex }) => {
+              const currentFile = files
+                .filter(file => file.type === 'image')
+                [imageIndex];
 
-                <View style={styles.detailsIconContainer}>
-                <TouchableOpacity 
-                    onPress={() => showFileDetails(
-                      `file://${files.filter(file => file.type === 'image')[imageIndex].path}`
-                    )}
+              return (
+                <View style={styles.imageViewerHeader}>
+
+                  <View style={styles.detailsIconContainer}>
+                  <TouchableOpacity 
+                    onPress={() => showFileDetails(`file://${files.filter(file => file.type === 'image')[imageIndex].path}`)}
                   >
                     <Icon name="info-circle" size={30} color="white" />
                   </TouchableOpacity>
+                  </View>
+                  
+                  <Text style={styles.imageTitleName} numberOfLines={1} ellipsizeMode="tail">
+                    {currentFile?.name}
+                  </Text>
+
+                  <TouchableOpacity
+                    style={styles.closeIconContainer}
+                    onPress={closeModal}
+                  >
+                    <Icon name="close" size={30} color="white" />
+                  </TouchableOpacity>
                 </View>
-                
-                <Text style={styles.imageTitleName} numberOfLines={1} ellipsizeMode="tail">
-                  {currentFile?.name}
-                </Text>
-
-                <TouchableOpacity
-                  style={styles.closeIconContainer}
-                  onPress={closeModal}
-                >
-                  <Icon name="close" size={30} color="white" />
-                </TouchableOpacity>
-              </View>
-            );
-          }}
-          FooterComponent={({ imageIndex }) => {
-            const imageFiles = files.filter(file => file.type === 'image');
-            return (
-              <View style={styles.imageViewerFooter}>
-                <Text style={styles.imageIndexFooter}>
-                  {imageIndex + 1} / {imageFiles.length}
-                </Text>
-              </View>
-            );
-          }}
-        />
-      )}
       
-      {/* File Details Modal */}
-      <BottomSheet
-        visible={isDetailsVisible}
-        onDismiss={closeDetailsModal}
-        height={600}
-        containerStyle={styles.fileDetailsBottomSheet}
-      >
-        <ScrollView 
-          style={styles.scrollableContent} 
-          contentContainerStyle={styles.scrollContentContainer}
+              );
+            }}
+            FooterComponent={({ imageIndex }) => {
+              const imageFiles = files.filter(file => file.type === 'image');
+              return (
+                <View style={styles.imageViewerFooter}>
+                  <Text style={styles.imageIndexFooter}>
+                    {imageIndex + 1} / {imageFiles.length}
+                  </Text>
+                </View>
+              );
+            }}
+          />
+        )}
+        
+        {/* File Details Modal */}
+        {/* <BottomSheet
+          visible={isDetailsVisible}
+          onDismiss={closeDetailsModal}
+          height={400} // Adjusted height for better UX
+          containerStyle={styles.fileDetailsBottomSheet}
         >
-          <View style={styles.header}>
-            <Text style={styles.headerTitle}>Details</Text>
-          </View>
-          <View style={styles.detailsContainer}>
-            <View style={styles.detailsSection}>
-              <Text style={styles.sectionLabel}>Name</Text>
-              <Text style={styles.sectionValue}>{fileDetails?.fileName}</Text>
+          <ScrollView 
+            style={styles.scrollableContent} 
+            contentContainerStyle={styles.scrollContentContainer}
+          >
+            <View style={styles.header}>
+              <Text style={styles.headerTitle}>Details</Text>
             </View>
-            <View style={styles.horizontalBar} />
-            <View style={styles.detailsSection}>
-              <Text style={styles.sectionLabel}>Time</Text>
-              <Text style={styles.sectionValue}>{fileDetails?.lastModified}</Text>
+            <View style={styles.detailsContainer}>
+              <View style={styles.detailsSection}>
+                <Text style={styles.sectionLabel}>Name</Text>
+                <Text style={styles.sectionValue}>{fileDetails?.fileName}</Text>
+              </View>
+              <View style={styles.horizontalBar} />
+              <View style={styles.detailsSection}>
+                <Text style={styles.sectionLabel}>Time</Text>
+                <Text style={styles.sectionValue}>{fileDetails?.lastModified}</Text>
+              </View>
+              <View style={styles.horizontalBar} />
+              <View style={styles.detailsSection}>
+                <Text style={styles.sectionLabel}>Dimensions</Text>
+                <Text style={styles.sectionValue}>{fileDetails?.dimensions}</Text>
+              </View>
+              <View style={styles.horizontalBar} />
+              <View style={styles.detailsSection}>
+                <Text style={styles.sectionLabel}>Size</Text>
+                <Text style={styles.sectionValue}>{fileDetails?.size} MB</Text>
+              </View>
+              <View style={styles.horizontalBar} />
+              <View style={styles.detailsSection}>
+                <Text style={styles.sectionLabel}>Path</Text>
+                <Text style={styles.sectionValue} numberOfLines={2} ellipsizeMode="middle">
+                  {fileDetails?.filePath}
+                </Text>
+              </View>
             </View>
-            <View style={styles.horizontalBar} />
-            <View style={styles.detailsSection}>
-              <Text style={styles.sectionLabel}>Dimensions</Text>
-              <Text style={styles.sectionValue}>{fileDetails?.dimensions}</Text>
-            </View>
-            <View style={styles.horizontalBar} />
-            <View style={styles.detailsSection}>
-              <Text style={styles.sectionLabel}>Size</Text>
-              <Text style={styles.sectionValue}>{fileDetails?.size} MB</Text>
-            </View>
-            <View style={styles.horizontalBar} />
-            <View style={styles.detailsSection}>
-              <Text style={styles.sectionLabel}>Path</Text>
-              <Text style={styles.sectionValue} numberOfLines={2} ellipsizeMode="middle">
-                {fileDetails?.filePath}
-              </Text>
-            </View>
-          </View>
-        </ScrollView>
-      </BottomSheet>
+          </ScrollView>
+        </BottomSheet> */}
 
-      {fileType === 'audio' && selectedFile && (
-        <AudioPlayerModal 
-          visible={true} 
-          audioUri={selectedFile} 
-          onRequestClose={closeModal} 
-        />
-      )}
+{isDetailsVisible && (
+   <GestureHandlerRootView style={styles.container}> 
+    <BottomsheetModal
+      visible={isDetailsVisible}
+      onDismiss={closeDetailsModal}
+      containerStyle={styles.fileDetailsBottomSheet}
+      fileDetails={fileDetails}
+    >
+    </BottomsheetModal>
+    <StatusBar />
+  </GestureHandlerRootView>
+)} 
 
-      {fileType === 'video' && selectedFile && (
-        <VideoPlayerModal 
-          visible={true} 
-          videoUri={selectedFile} 
-          onRequestClose={closeModal} 
-        />
-      )}
-    </View>
+
+
+        {fileType === 'audio' && selectedFile && (
+          <AudioPlayerModal 
+            visible={true} 
+            audioUri={selectedFile} 
+            onRequestClose={closeModal} 
+          />
+        )}
+
+        {fileType === 'video' && selectedFile && (
+          <VideoPlayerModal 
+            visible={true} 
+            videoUri={selectedFile} 
+            onRequestClose={closeModal} 
+          />
+        )}
+      </View>
+    </GestureHandlerRootView>
   );
 };
 
