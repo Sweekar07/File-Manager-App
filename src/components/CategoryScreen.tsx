@@ -10,7 +10,7 @@ import ImageViewerModal from './ImageViewerModal';
 import AudioPlayerModal from './AudioPlayerModal';
 import VideoPlayerModal from './VideoPlayerModal';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import ImageViewing from 'react-native-image-viewing';
+import ImageView from 'react-native-image-viewing';
 import BottomsheetModal from './BottomSheet';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
@@ -475,7 +475,7 @@ const CategoryScreen: React.FC<CategoryScreenProps> = ({ route, navigation }) =>
     }; 
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
+    // <GestureHandlerRootView style={{ flex: 1 }}>
       <View style={styles.container}>
         {/* <TouchableOpacity onPress={navigateBack} style={styles.backButton}>
           <Icon name="arrow-left" size={25} color="#000" />
@@ -498,13 +498,13 @@ const CategoryScreen: React.FC<CategoryScreenProps> = ({ route, navigation }) =>
         )} */}
 
         {/* Advanced Image Viewer with Swipe and Header */}
-        {fileType === 'image' && isImageViewerVisible && (
-          <ImageViewing
+        {fileType === 'image' && (
+          <ImageView
             images={files
               .filter(file => file.type === 'image')
               .map(file => ({ uri: `file://${file.path}` }))}
             imageIndex={currentImageIndex}
-            visible={isImageViewerVisible}
+            visible={true}
             onRequestClose={closeModal}
             presentationStyle="fullScreen" // new
             swipeToCloseEnabled={true} // new
@@ -596,18 +596,15 @@ const CategoryScreen: React.FC<CategoryScreenProps> = ({ route, navigation }) =>
           </ScrollView>
         </BottomSheet> */}
 
-{isDetailsVisible && (
-   <GestureHandlerRootView style={styles.container}> 
-    <BottomsheetModal
-      visible={isDetailsVisible}
-      onDismiss={closeDetailsModal}
-      containerStyle={styles.fileDetailsBottomSheet}
-      fileDetails={fileDetails}
-    >
-    </BottomsheetModal>
-    <StatusBar />
-  </GestureHandlerRootView>
-)} 
+        {isDetailsVisible && isImageViewerVisible && (
+            <BottomsheetModal
+              visible={isDetailsVisible}
+              onDismiss={closeDetailsModal}
+              containerStyle={styles.fileDetailsBottomSheet}
+              fileDetails={fileDetails}
+            >
+            </BottomsheetModal>
+        )} 
 
 
 
@@ -627,7 +624,7 @@ const CategoryScreen: React.FC<CategoryScreenProps> = ({ route, navigation }) =>
           />
         )}
       </View>
-    </GestureHandlerRootView>
+    // </GestureHandlerRootView>
   );
 };
 

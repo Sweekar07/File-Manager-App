@@ -22,14 +22,14 @@ const Stack = createStackNavigator<RootStackParamList>();
 const App = () => {
   return (
     <SafeAreaProvider>
-      <GestureHandlerRootView style={{ flex: 1 }}>
+      {/* <GestureHandlerRootView style={{ flex: 1 }}> */}
         <NavigationContainer>
           <Stack.Navigator>
             <Stack.Screen name="HomeScreen" component={HomeScreen} options={{ title: 'File Manager' }} />
             <Stack.Screen name="CategoryScreen" component={CategoryScreen} options={({ route }) => ({ title: route.params.title })} />
           </Stack.Navigator>
         </NavigationContainer>
-      </GestureHandlerRootView>
+      {/* </GestureHandlerRootView> */}
     </SafeAreaProvider>
   );
 };
