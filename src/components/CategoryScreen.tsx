@@ -12,7 +12,6 @@ import VideoPlayerModal from './VideoPlayerModal';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import ImageView from 'react-native-image-viewing';
 import BottomsheetModal from './BottomSheet';
-import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
 interface File {
   name: string;
@@ -475,27 +474,9 @@ const CategoryScreen: React.FC<CategoryScreenProps> = ({ route, navigation }) =>
     }; 
 
   return (
-    // <GestureHandlerRootView style={{ flex: 1 }}>
       <View style={styles.container}>
-        {/* <TouchableOpacity onPress={navigateBack} style={styles.backButton}>
-          <Icon name="arrow-left" size={25} color="#000" />
-          <Text style={styles.backText}>Back</Text>
-        </TouchableOpacity> */}
 
         {renderContent}
-
-        {/* {fileType === 'image' && selectedFile && (
-          <ImageViewerModal
-            visible={true}
-            images={files
-              .filter(file => file.type === 'image')
-              .map(file => ({ uri: `file://${file.path}` }))}
-            initialIndex={files
-              .filter(file => file.type === 'image')
-              .findIndex(file => `file://${file.path}` === selectedFile)}
-            onRequestClose={closeModal}
-          />
-        )} */}
 
         {/* Advanced Image Viewer with Swipe and Header */}
         {fileType === 'image' && (
@@ -552,50 +533,6 @@ const CategoryScreen: React.FC<CategoryScreenProps> = ({ route, navigation }) =>
         )}
         
         {/* File Details Modal */}
-        {/* <BottomSheet
-          visible={isDetailsVisible}
-          onDismiss={closeDetailsModal}
-          height={400} // Adjusted height for better UX
-          containerStyle={styles.fileDetailsBottomSheet}
-        >
-          <ScrollView 
-            style={styles.scrollableContent} 
-            contentContainerStyle={styles.scrollContentContainer}
-          >
-            <View style={styles.header}>
-              <Text style={styles.headerTitle}>Details</Text>
-            </View>
-            <View style={styles.detailsContainer}>
-              <View style={styles.detailsSection}>
-                <Text style={styles.sectionLabel}>Name</Text>
-                <Text style={styles.sectionValue}>{fileDetails?.fileName}</Text>
-              </View>
-              <View style={styles.horizontalBar} />
-              <View style={styles.detailsSection}>
-                <Text style={styles.sectionLabel}>Time</Text>
-                <Text style={styles.sectionValue}>{fileDetails?.lastModified}</Text>
-              </View>
-              <View style={styles.horizontalBar} />
-              <View style={styles.detailsSection}>
-                <Text style={styles.sectionLabel}>Dimensions</Text>
-                <Text style={styles.sectionValue}>{fileDetails?.dimensions}</Text>
-              </View>
-              <View style={styles.horizontalBar} />
-              <View style={styles.detailsSection}>
-                <Text style={styles.sectionLabel}>Size</Text>
-                <Text style={styles.sectionValue}>{fileDetails?.size} MB</Text>
-              </View>
-              <View style={styles.horizontalBar} />
-              <View style={styles.detailsSection}>
-                <Text style={styles.sectionLabel}>Path</Text>
-                <Text style={styles.sectionValue} numberOfLines={2} ellipsizeMode="middle">
-                  {fileDetails?.filePath}
-                </Text>
-              </View>
-            </View>
-          </ScrollView>
-        </BottomSheet> */}
-
         {isDetailsVisible && isImageViewerVisible && (
             <BottomsheetModal
               visible={isDetailsVisible}
@@ -605,8 +542,6 @@ const CategoryScreen: React.FC<CategoryScreenProps> = ({ route, navigation }) =>
             >
             </BottomsheetModal>
         )} 
-
-
 
         {fileType === 'audio' && selectedFile && (
           <AudioPlayerModal 
@@ -624,7 +559,6 @@ const CategoryScreen: React.FC<CategoryScreenProps> = ({ route, navigation }) =>
           />
         )}
       </View>
-    // </GestureHandlerRootView>
   );
 };
 
