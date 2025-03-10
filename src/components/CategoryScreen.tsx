@@ -37,23 +37,27 @@ interface CategoryScreenProps {
 // Constants
 // const CACHE_EXPIRATION_TIME = 24 * 60 * 60 * 1000; // 24 hours
 const CACHE_EXPIRATION_TIME = 30 * 1000; // 24 hours
-const MAX_FILES = 500;
-const SCAN_DEPTH_LIMIT = 2;
+const MAX_FILES = 1000;
+const SCAN_DEPTH_LIMIT = 5;
 const BASE_DIRECTORIES = {
   'Photos': [
     RNFS.ExternalStorageDirectoryPath,
     `${RNFS.ExternalStorageDirectoryPath}/DCIM`,
-    `${RNFS.ExternalStorageDirectoryPath}/Pictures`
+    `${RNFS.ExternalStorageDirectoryPath}/Pictures`,
+    `${RNFS.ExternalStorageDirectoryPath}/Download`
   ],
   'Audio': [
     RNFS.ExternalStorageDirectoryPath,
     `${RNFS.ExternalStorageDirectoryPath}/Music`,
-    `${RNFS.ExternalStorageDirectoryPath}/Download`
+    `${RNFS.ExternalStorageDirectoryPath}/Download`,
+    `${RNFS.ExternalStorageDirectoryPath}/Audio`
   ],
   'Videos': [
     RNFS.ExternalStorageDirectoryPath,
     `${RNFS.ExternalStorageDirectoryPath}/Movies`,
-    `${RNFS.ExternalStorageDirectoryPath}/DCIM/Camera`
+    `${RNFS.ExternalStorageDirectoryPath}/DCIM`,
+    `${RNFS.ExternalStorageDirectoryPath}/Download`,
+    `${RNFS.ExternalStorageDirectoryPath}/Videos`
   ],
   'Documents': [
     RNFS.ExternalStorageDirectoryPath,
@@ -70,7 +74,7 @@ const BASE_DIRECTORIES = {
   ]
 };
 
-const SKIP_DIRECTORIES = ['Android', '.', '..', 'Android/data', '.thumbnails'];
+const SKIP_DIRECTORIES = ['Android', '.', '..', 'Android/data', '.thumbnails', '.Trash', '$RECYCLE.BIN'];
 
 
 const CategoryScreen: React.FC<CategoryScreenProps> = ({ route, navigation }) => {
@@ -87,13 +91,17 @@ const CategoryScreen: React.FC<CategoryScreenProps> = ({ route, navigation }) =>
   const [isImageViewerVisible, setImageViewerVisible] = useState(false);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [isDetailsVisible, setDetailsVisible] = useState(false);
-  const [fileDetails, setFileDetails] = useState<{
+  const [imageFileDetails, setImageFileDetails] = useState<{
     size: string;
     lastModified: string;
     fileName: string;
     filePath: string;
     dimensions: string;
   } | null>(null);
+  const [audioFileDetails, setAudioFileDetails] = useState<{
+    size: string,
+    modifiedDate: string;
+  } | null>(null)
   
   // Memoized file type and category matching functions
   const getFileType = useCallback((fileName: string): File['type'] => {
@@ -316,6 +324,10 @@ const CategoryScreen: React.FC<CategoryScreenProps> = ({ route, navigation }) =>
       setSelectedFile(`file://${filePath}`);
       setFileType(type);
       setImageViewerVisible(true);
+    } else if (type === 'audio') {
+      setSelectedFile(`file://${filePath}`);
+      setFileType(type);
+      getAudioFileDetails(`file://${filePath}`);
     } else {
       setSelectedFile(`file://${filePath}`);
       setFileType(type);
@@ -341,7 +353,7 @@ const CategoryScreen: React.FC<CategoryScreenProps> = ({ route, navigation }) =>
   //   }
   // };
 
-  const showFileDetails = async (imageUri: string) => {
+  const showImageFileDetails = async (imageUri: string) => {
     try {
       const filePath = imageUri.replace('file://', '');
       const stats = await RNFS.stat(filePath);
@@ -365,7 +377,7 @@ const CategoryScreen: React.FC<CategoryScreenProps> = ({ route, navigation }) =>
         Image.getSize(imageUri, (width, height) => resolve({ width, height }));
       });
   
-      setFileDetails({
+      setImageFileDetails({
         size: sizeInMB,
         lastModified,
         fileName: fileName || '',
@@ -470,8 +482,47 @@ const CategoryScreen: React.FC<CategoryScreenProps> = ({ route, navigation }) =>
 
   const closeDetailsModal = () => {
       setDetailsVisible(false);
-      setFileDetails(null);
+      setImageFileDetails(null);
     }; 
+
+  const getAudioFileDetails = async (filePath: string) =>  {
+    try {
+      const fileStat = await RNFS.stat(filePath);
+      console.log('File Size:', fileStat.size); // in bytes
+      console.log('Modified Date:', fileStat.mtime); // Date object
+  
+      // Optional: format the size to MB
+      const sizeInMB = (fileStat.size / (1024 * 1024)).toFixed(2);
+  
+      // Format date
+      const dateObj = new Date(fileStat.mtime);
+
+      // Format: 16 November 2024
+      const formattedDate = dateObj.toLocaleDateString('en-GB', { 
+        day: 'numeric', 
+        month: 'long', 
+        year: 'numeric' 
+      });
+
+      // Format: 4:11 pm
+      const formattedTime = dateObj.toLocaleTimeString('en-US', { 
+        hour: 'numeric', 
+        minute: '2-digit', 
+        hour12: true 
+      }).toLowerCase(); // Make sure 'PM' becomes 'pm'
+
+      // Final format: 16 November 2024 at 4:11 pm
+      const finalFormattedDate = `${formattedDate} at ${formattedTime}`;
+
+      setAudioFileDetails({
+        size: sizeInMB || 'Not found',
+        modifiedDate: finalFormattedDate || 'Not found',
+      });
+    } catch (error) {
+      console.error('Error fetching file details:', error);
+    }
+  };
+    
 
   return (
       <View style={styles.container}>
@@ -499,7 +550,7 @@ const CategoryScreen: React.FC<CategoryScreenProps> = ({ route, navigation }) =>
 
                   <View style={styles.detailsIconContainer}>
                   <TouchableOpacity 
-                    onPress={() => showFileDetails(`file://${files.filter(file => file.type === 'image')[imageIndex].path}`)}
+                    onPress={() => showImageFileDetails(`file://${files.filter(file => file.type === 'image')[imageIndex].path}`)}
                   >
                     <Icon name="info-circle" size={30} color="white" />
                   </TouchableOpacity>
@@ -538,7 +589,7 @@ const CategoryScreen: React.FC<CategoryScreenProps> = ({ route, navigation }) =>
               visible={isDetailsVisible}
               onDismiss={closeDetailsModal}
               containerStyle={styles.fileDetailsBottomSheet}
-              fileDetails={fileDetails}
+              fileDetails={imageFileDetails}
             >
             </BottomsheetModal>
         )} 
@@ -547,6 +598,7 @@ const CategoryScreen: React.FC<CategoryScreenProps> = ({ route, navigation }) =>
           <AudioPlayerModal 
             visible={true} 
             audioUri={selectedFile} 
+            fileDetails={audioFileDetails}
             onRequestClose={closeModal} 
           />
         )}
