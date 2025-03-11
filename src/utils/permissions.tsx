@@ -68,9 +68,17 @@ const doFullPermissionCheck = async (): Promise<boolean> => {
         result === RESULTS.GRANTED || result === RESULTS.LIMITED
       );
     } else if (Platform.Version >= 29) {
-      // Android 10+ (API 29+)
-      const result = await check(PERMISSIONS.ANDROID.READ_EXTERNAL_STORAGE);
-      return result === RESULTS.GRANTED || result === RESULTS.LIMITED;
+       // Android 10+ (API 29+)
+       const permissions = [
+        PERMISSIONS.ANDROID.READ_EXTERNAL_STORAGE,
+        PERMISSIONS.ANDROID.READ_MEDIA_IMAGES,
+        PERMISSIONS.ANDROID.READ_MEDIA_VIDEO,
+        PERMISSIONS.ANDROID.READ_MEDIA_AUDIO,
+      ];
+      const results = await Promise.all(permissions.map((permission) => check(permission)));
+      return results.every(result =>
+        result === RESULTS.GRANTED || result === RESULTS.LIMITED
+      );
     } else {
       // Earlier Android versions
       const readResult = await check(PERMISSIONS.ANDROID.READ_EXTERNAL_STORAGE);

@@ -102,6 +102,8 @@ const CategoryScreen: React.FC<CategoryScreenProps> = ({ route, navigation }) =>
     size: string,
     modifiedDate: string;
   } | null>(null)
+
+  const [currentAudioIndex, setCurrentAudioIndex] = useState<number>(0);
   
   // Memoized file type and category matching functions
   const getFileType = useCallback((fileName: string): File['type'] => {
@@ -325,6 +327,11 @@ const CategoryScreen: React.FC<CategoryScreenProps> = ({ route, navigation }) =>
       setFileType(type);
       setImageViewerVisible(true);
     } else if (type === 'audio') {
+      // Find the index of the selected audio in audio files
+      const audioFiles = files.filter(file => file.type === 'audio');
+      const index = audioFiles.findIndex(file => file.path === filePath);
+
+      setCurrentAudioIndex(index);
       setSelectedFile(`file://${filePath}`);
       setFileType(type);
       getAudioFileDetails(`file://${filePath}`);
@@ -339,6 +346,17 @@ const CategoryScreen: React.FC<CategoryScreenProps> = ({ route, navigation }) =>
     setFileType(null);
     setImageViewerVisible(false);
     setDetailsVisible(false);
+  };
+
+  // Add this function to handle track changes
+  const handleTrackChange = (newIndex: number) => {
+    const audioFiles = files.filter(file => file.type === 'audio');
+    if (audioFiles.length === 0 || newIndex < 0 || newIndex >= audioFiles.length) return;
+    
+    const newFile = audioFiles[newIndex];
+    setSelectedFile(`file://${newFile.path}`);
+    setCurrentAudioIndex(newIndex);
+    getAudioFileDetails(`file://${newFile.path}`);
   };
 
   // const navigateBack = () => {
@@ -600,6 +618,9 @@ const CategoryScreen: React.FC<CategoryScreenProps> = ({ route, navigation }) =>
             audioUri={selectedFile} 
             fileDetails={audioFileDetails}
             onRequestClose={closeModal} 
+            audioFiles={files.filter(file => file.type === 'audio') as { name: string; path: string; type: 'audio'; }[]}
+            currentIndex={currentAudioIndex}
+            onChangeTrack={handleTrackChange}
           />
         )}
 

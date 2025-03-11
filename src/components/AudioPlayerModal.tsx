@@ -11,9 +11,17 @@ interface AudioPlayerModalProps {
   audioUri: string;
   fileDetails?: any;
   onRequestClose: () => void;
+  audioFiles?: Array<{
+    name: string;
+    path: string;
+    type: 'audio';
+  }>;
+  currentIndex?: number;
+  onChangeTrack?: (newIndex: number) => void;
 }
 
-const AudioPlayerModal: React.FC<AudioPlayerModalProps> = ({ visible, audioUri, fileDetails, onRequestClose }) => {  
+const AudioPlayerModal: React.FC<AudioPlayerModalProps> = ({ visible, audioUri, fileDetails, onRequestClose, audioFiles = [],currentIndex = 0, onChangeTrack }) => {  
+
   const soundRef = useRef<Sound | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -25,9 +33,13 @@ const AudioPlayerModal: React.FC<AudioPlayerModalProps> = ({ visible, audioUri, 
 
 
   const playAudio = (audioPath: string) => {
+
+    // First, clean the path to ensure proper file protocol
+    const cleanPath = audioPath.replace('file://', '');
+
     if (soundRef.current) {
       soundRef.current.stop(() => {
-        soundRef.current = new Sound(audioPath, '', (error) => {
+        soundRef.current = new Sound(cleanPath, '', (error) => {
           if (error) {
             console.log('Failed to load the sound', error);
             return;
@@ -47,7 +59,7 @@ const AudioPlayerModal: React.FC<AudioPlayerModalProps> = ({ visible, audioUri, 
         });
       });
     } else {
-      soundRef.current = new Sound(audioPath, '', (error) => {
+      soundRef.current = new Sound(cleanPath, '', (error) => {
         if (error) {
           console.log('Failed to load the sound', error);
           return;
@@ -98,6 +110,22 @@ const AudioPlayerModal: React.FC<AudioPlayerModalProps> = ({ visible, audioUri, 
     }
   };
 
+   // Function to play next song
+   const playNextSong = () => {
+    if (audioFiles.length === 0 || currentIndex === undefined || !onChangeTrack) return;
+    
+    const nextIndex = (currentIndex + 1) % audioFiles.length;
+    onChangeTrack(nextIndex);
+  };
+
+  // Function to play previous song
+  const playPreviousSong = () => {
+    if (audioFiles.length === 0 || currentIndex === undefined || !onChangeTrack) return;
+    
+    const prevIndex = (currentIndex - 1 + audioFiles.length) % audioFiles.length;
+    onChangeTrack(prevIndex);
+  };
+
   useEffect(() => {
     if (visible) {
       playAudio(audioUri);
@@ -126,10 +154,14 @@ const AudioPlayerModal: React.FC<AudioPlayerModalProps> = ({ visible, audioUri, 
   // Remove file extension for display
   const songName = fileName.replace(/\.[^/.]+$/, "");
 
+  // Check if navigation buttons should be enabled
+  const hasMultipleSongs = audioFiles.length > 1;
+
   return (
     <Modal visible={visible} animationType="slide" transparent={true} onRequestClose={onRequestClose}>
       <View style={styles.modalOverlay}>
         <View style={styles.musicPlayerContainer}>
+
           {/* Header with back button and options */}
           <View style={styles.musicPlayerHeader}>
             <TouchableOpacity onPress={onRequestClose}>
@@ -141,6 +173,7 @@ const AudioPlayerModal: React.FC<AudioPlayerModalProps> = ({ visible, audioUri, 
             </TouchableOpacity>
           </View>
 
+          {/* To display File info  */}
           <Modal visible={showOptions} transparent animationType="fade">
             <TouchableOpacity style={styles.optionsOverlay} onPress={() => setShowOptions(false)}>
               <View style={styles.optionsContainer}>
@@ -151,6 +184,7 @@ const AudioPlayerModal: React.FC<AudioPlayerModalProps> = ({ visible, audioUri, 
             </TouchableOpacity>
           </Modal>
 
+          {/* After user clicks on above displayed File info */}
           <Modal visible={showDetails} transparent={false} animationType="slide" onRequestClose={() => setShowDetails(false)}>
             <View style={styles.detailsContainer}>
 
@@ -224,18 +258,33 @@ const AudioPlayerModal: React.FC<AudioPlayerModalProps> = ({ visible, audioUri, 
 
           {/* Player controls */}
           <View style={styles.playerControlsContainer}>
-            <TouchableOpacity onPress={() => seekAudio(currentTime - 10)}>
-              <Icon name="step-backward" size={30} color="white" />
+            <TouchableOpacity
+            onPress={playPreviousSong}
+            disabled={!hasMultipleSongs}>
+              <Icon name="step-backward" size={30} color={hasMultipleSongs ? "white" : "#555"} />
             </TouchableOpacity>
+
+            <TouchableOpacity onPress={() => seekAudio(currentTime - 10)}>
+              <Icon name="rotate-left" size={30} color="white" />
+            </TouchableOpacity>
+
             <TouchableOpacity 
               style={styles.playPauseButton}
               onPress={isPlaying ? pauseAudio : () => playAudio(audioUri)}
             >
               <Icon name={isPlaying ? 'pause' : 'play'} size={30} color="white" />
             </TouchableOpacity>
-            <TouchableOpacity onPress={() => seekAudio(currentTime + 10)}>
-              <Icon name="step-forward" size={30} color="white" />
+
+            <TouchableOpacity onPress={() => seekAudio(currentTime + 10)}>  
+              <Icon name="rotate-right" size={30} color="white" />
             </TouchableOpacity>
+
+            <TouchableOpacity
+            onPress={playNextSong}
+            disabled={!hasMultipleSongs}>
+              <Icon name="step-forward" size={30} color={hasMultipleSongs ? "white" : "#555"} />
+            </TouchableOpacity>
+
           </View>
 
           {/* Volume slider */}
@@ -295,12 +344,12 @@ const styles = StyleSheet.create({
   musicIconContainer: {
     alignItems: 'center',
     justifyContent: 'center',
-    marginVertical: 30,
+    marginVertical: 100,
   },
   musicIconCircle: {
-    width: 150,
-    height: 150,
-    borderRadius: 75,
+    width: 200,
+    height: 200,
+    borderRadius: 150,
     backgroundColor: '#444',
     alignItems: 'center',
     justifyContent: 'center',
