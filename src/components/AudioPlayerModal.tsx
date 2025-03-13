@@ -1,7 +1,7 @@
 // src/components/AudioPlayerModal.tsx
 
 import React, { useRef, useState, useEffect } from 'react';
-import { Modal, View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { Modal, View, Text, TouchableOpacity, StyleSheet, SafeAreaView, ScrollView } from 'react-native';
 import Slider from '@react-native-community/slider';
 import Icon from 'react-native-vector-icons/FontAwesome';
 import Sound from 'react-native-sound';
@@ -27,6 +27,8 @@ const AudioPlayerModal: React.FC<AudioPlayerModalProps> = ({ visible, audioUri, 
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [volume, setVolume] = useState(0.7);
+  const [isSeeking, setIsSeeking] = useState(false);
+  const seekingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const [showOptions, setShowOptions] = useState(false);
   const [showDetails, setShowDetails] = useState(false); // State for showing file details
@@ -96,11 +98,58 @@ const AudioPlayerModal: React.FC<AudioPlayerModalProps> = ({ visible, audioUri, 
     }
   };
 
+  // const seekAudio = (seconds: number) => {
+  //   if (soundRef.current) {
+  //     soundRef.current.setCurrentTime(seconds);
+  //     setCurrentTime(seconds);
+  //   }
+  // };
+
   const seekAudio = (seconds: number) => {
-    if (soundRef.current) {
-      soundRef.current.setCurrentTime(seconds);
-      setCurrentTime(seconds);
+    if (!soundRef.current) return;
+    
+    // Make sure we're not seeking beyond the bounds
+    const newTime = Math.max(0, Math.min(seconds, duration));
+    
+    // Set seeking flag to prevent interval updates during seek
+    setIsSeeking(true);
+    
+    // Update the sound position
+    soundRef.current.setCurrentTime(newTime);
+    
+    // Update UI immediately with the new time
+    setCurrentTime(newTime);
+    
+    // Clear any existing timeout
+    if (seekingTimeoutRef.current) {
+      clearTimeout(seekingTimeoutRef.current);
     }
+    
+    // Set a timeout to reset the seeking flag
+    seekingTimeoutRef.current = setTimeout(() => {
+      setIsSeeking(false);
+      seekingTimeoutRef.current = null;
+    }, 200); // Small delay to prevent rapid seek issues
+  };
+
+  const skipForward = () => {
+    if (!soundRef.current) return;
+    
+    // Use the current time from the sound directly to ensure accuracy
+    soundRef.current.getCurrentTime((seconds) => {
+      const newTime = Math.min(seconds + 10, duration);
+      seekAudio(newTime);
+    });
+  };
+
+  const skipBackward = () => {
+    if (!soundRef.current) return;
+    
+    // Use the current time from the sound directly to ensure accuracy
+    soundRef.current.getCurrentTime((seconds) => {
+      const newTime = Math.max(seconds - 10, 0);
+      seekAudio(newTime);
+    });
   };
 
   const setAudioVolume = (value: number) => {
@@ -132,17 +181,30 @@ const AudioPlayerModal: React.FC<AudioPlayerModalProps> = ({ visible, audioUri, 
     }
     return () => {
       stopAudio();
+      // Cleanup any pending timeouts
+      if (seekingTimeoutRef.current) {
+        clearTimeout(seekingTimeoutRef.current);
+      }
     };
   }, [visible, audioUri]);
 
+  // useEffect(() => {
+  //   const interval = setInterval(() => {
+  //     if (soundRef.current && isPlaying) {
+  //       soundRef.current.getCurrentTime((seconds) => setCurrentTime(seconds));
+  //     }
+  //   }, 1000);
+  //   return () => clearInterval(interval);
+  // }, [isPlaying]);
+
   useEffect(() => {
     const interval = setInterval(() => {
-      if (soundRef.current && isPlaying) {
+      if (soundRef.current && isPlaying && !isSeeking) {
         soundRef.current.getCurrentTime((seconds) => setCurrentTime(seconds));
       }
     }, 1000);
     return () => clearInterval(interval);
-  }, [isPlaying]);
+  }, [isPlaying, isSeeking]);
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -159,151 +221,158 @@ const AudioPlayerModal: React.FC<AudioPlayerModalProps> = ({ visible, audioUri, 
 
   return (
     <Modal visible={visible} animationType="slide" transparent={true} onRequestClose={onRequestClose}>
-      <View style={styles.modalOverlay}>
-        <View style={styles.musicPlayerContainer}>
+      <SafeAreaView style={styles.modalOverlay}>
+        <ScrollView contentContainerStyle={styles.scrollContainer}>
+          <View style={styles.musicPlayerContainer}>
 
-          {/* Header with back button and options */}
-          <View style={styles.musicPlayerHeader}>
-            <TouchableOpacity onPress={onRequestClose}>
-              <Icon name="arrow-left" size={24} color="white" />
-            </TouchableOpacity>
-            <Text style={styles.musicPlayerTitle}>Music Player</Text>
-            <TouchableOpacity onPress={() => setShowOptions(true)} style={{ padding: 5}}>
-              <Icon name="ellipsis-v" size={24} color="white" />
-            </TouchableOpacity>
-          </View>
+            {/* Header with back button and options */}
+            <View style={styles.musicPlayerHeader}>
+              <TouchableOpacity onPress={onRequestClose}>
+                <Icon name="arrow-left" size={24} color="white" />
+              </TouchableOpacity>
+              <Text style={styles.musicPlayerTitle}>Music Player</Text>
+              <TouchableOpacity onPress={() => setShowOptions(true)} style={{ padding: 5}}>
+                <Icon name="ellipsis-v" size={24} color="white" />
+              </TouchableOpacity>
+            </View>
 
-          {/* To display File info  */}
-          <Modal visible={showOptions} transparent animationType="fade">
-            <TouchableOpacity style={styles.optionsOverlay} onPress={() => setShowOptions(false)}>
-              <View style={styles.optionsContainer}>
-                <TouchableOpacity onPress={() => { setShowDetails(true); setShowOptions(false); }}>
-                  <Text style={styles.optionText}>File info</Text>
-                </TouchableOpacity>
-              </View>
-            </TouchableOpacity>
-          </Modal>
-
-          {/* After user clicks on above displayed File info */}
-          <Modal visible={showDetails} transparent={false} animationType="slide" onRequestClose={() => setShowDetails(false)}>
-            <View style={styles.detailsContainer}>
-
-              {/* Top 40% Section with Back Icon and Music Logo */}
-              <View style={styles.detailsTopSection}>
-                {/* Back Button */}
-                <TouchableOpacity style={styles.backButton} onPress={() => setShowDetails(false)}>
-                  <Icon name="arrow-left" size={28} color="white" />
-                </TouchableOpacity>
-
-                {/* Music Icon */}
-                <View style={styles.detailsMusicIcon}>
-                  <Icon name="music" size={100} color="#A020F0" />
+            {/* To display File info  */}
+            <Modal visible={showOptions} transparent animationType="fade">
+              <TouchableOpacity style={styles.optionsOverlay} onPress={() => setShowOptions(false)}>
+                <View style={styles.optionsContainer}>
+                  <TouchableOpacity onPress={() => { setShowDetails(true); setShowOptions(false); }}>
+                    <Text style={styles.optionText}>File info</Text>
+                  </TouchableOpacity>
                 </View>
-              </View>
+              </TouchableOpacity>
+            </Modal>
 
-              {/* Bottom 60% Details */}
-              <View style={styles.detailsBottomSection}>
-                <Text style={styles.detailTitle}>{songName}</Text>
-                
-                {/* Music file container */}
-                <View style={styles.detailContainer}>
-                  <Icon name="music" size={30} color="#777" style={styles.detailIcon} />
-                  <View style={styles.detailTextContainer}>
-                    <Text style={styles.detailItemBold}>{songName}</Text>
-                    <Text style={styles.detailItem}>{fileDetails?.size} MB  •  {formatTime(duration)}</Text>
+            {/* After user clicks on above displayed File info */}
+            <Modal visible={showDetails} transparent={false} animationType="slide" onRequestClose={() => setShowDetails(false)}>
+              <View style={styles.detailsContainer}>
+
+                {/* Top 40% Section with Back Icon and Music Logo */}
+                <View style={styles.detailsTopSection}>
+                  {/* Back Button */}
+                  <TouchableOpacity style={styles.backButton} onPress={() => setShowDetails(false)}>
+                    <Icon name="arrow-left" size={28} color="white" />
+                  </TouchableOpacity>
+
+                  {/* Music Icon */}
+                  <View style={styles.detailsMusicIcon}>
+                    <Icon name="music" size={100} color="#A020F0" />
                   </View>
                 </View>
-                
-                {/* Date container */}
-                <View style={styles.detailContainer}>
-                  <Icon name="calendar" size={30} color="#777" style={styles.detailIcon} />
-                  <View style={styles.detailTextContainer}>
-                    <Text style={styles.detailItemBold}>Modified {fileDetails?.modifiedDate}</Text>
+
+                {/* Bottom 60% Details */}
+                <View style={styles.detailsBottomSection}>
+                  <Text style={styles.detailTitle}>{songName}</Text>
+                  
+                  {/* Music file container */}
+                  <View style={styles.detailContainer}>
+                    <Icon name="music" size={30} color="#777" style={styles.detailIcon} />
+                    <View style={styles.detailTextContainer}>
+                      <Text style={styles.detailItemBold}>{songName}</Text>
+                      <Text style={styles.detailItem}>{fileDetails?.size} MB  •  {formatTime(duration)}</Text>
+                    </View>
+                  </View>
+                  
+                  {/* Date container */}
+                  <View style={styles.detailContainer}>
+                    <Icon name="calendar" size={30} color="#777" style={styles.detailIcon} />
+                    <View style={styles.detailTextContainer}>
+                      <Text style={styles.detailItemBold}>Modified {fileDetails?.modifiedDate}</Text>
+                    </View>
                   </View>
                 </View>
               </View>
+            </Modal>
+
+            {/* Music icon/album art */}
+            <View style={styles.musicIconContainer}>
+              <View style={styles.musicIconCircle}>
+                <Icon name="music" size={60} color="white" />
+              </View>
             </View>
-          </Modal>
 
-          {/* Music icon/album art */}
-          <View style={styles.musicIconContainer}>
-            <View style={styles.musicIconCircle}>
-              <Icon name="music" size={60} color="white" />
+            {/* Progress bar */}
+            <View style={styles.progressContainer}>
+              <Slider
+                style={styles.progressBar}
+                minimumValue={0}
+                maximumValue={duration}
+                value={currentTime}
+                onSlidingStart={() => setIsSeeking(true)}
+                onValueChange={(value) => setCurrentTime(value)}
+                onSlidingComplete={(value) => {
+                  seekAudio(value);
+                }}
+                // onValueChange={seekAudio}
+                minimumTrackTintColor="#FFFFFF"
+                maximumTrackTintColor="#555555"
+                thumbTintColor="#FFFFFF"
+              />
+              <View style={styles.timeContainer}>
+                <Text style={styles.timeText}>{formatTime(currentTime)}</Text>
+                <Text style={styles.timeText}>{formatTime(duration)}</Text>
+              </View>
+            </View>
+
+            {/* Song info */}
+            <View style={styles.songInfoContainer}>
+              <Text style={styles.songTitle}>{songName}</Text>
+              <Text style={styles.songArtist}>Unknown Artist</Text>
+            </View>
+
+            {/* Player controls */}
+            <View style={styles.playerControlsContainer}>
+              <TouchableOpacity
+              onPress={playPreviousSong}
+              disabled={!hasMultipleSongs}>
+                <Icon name="step-backward" size={30} color={hasMultipleSongs ? "white" : "#555"} />
+              </TouchableOpacity>
+
+              <TouchableOpacity onPress={skipBackward}>
+                <Icon name="rotate-left" size={30} color="white" />
+              </TouchableOpacity>
+
+              <TouchableOpacity 
+                style={styles.playPauseButton}
+                onPress={isPlaying ? pauseAudio : () => playAudio(audioUri)}
+              >
+                <Icon name={isPlaying ? 'pause' : 'play'} size={30} color="white" />
+              </TouchableOpacity>
+
+              <TouchableOpacity onPress={skipForward}>  
+                <Icon name="rotate-right" size={30} color="white" />
+              </TouchableOpacity>
+
+              <TouchableOpacity
+              onPress={playNextSong}
+              disabled={!hasMultipleSongs}>
+                <Icon name="step-forward" size={30} color={hasMultipleSongs ? "white" : "#555"} />
+              </TouchableOpacity>
+
+            </View>
+
+            {/* Volume slider */}
+            <View style={styles.volumeContainer}>
+              <Icon name="volume-down" size={20} color="#AAAAAA" />
+              <Slider
+                style={styles.volumeSlider}
+                minimumValue={0}
+                maximumValue={1}
+                value={volume}
+                onValueChange={setAudioVolume}
+                minimumTrackTintColor="#FFFFFF"
+                maximumTrackTintColor="#555555"
+                thumbTintColor="#FFFFFF"
+              />
+              <Icon name="volume-up" size={20} color="#AAAAAA" />
             </View>
           </View>
-
-          {/* Progress bar */}
-          <View style={styles.progressContainer}>
-            <Slider
-              style={styles.progressBar}
-              minimumValue={0}
-              maximumValue={duration}
-              value={currentTime}
-              onValueChange={seekAudio}
-              minimumTrackTintColor="#FFFFFF"
-              maximumTrackTintColor="#555555"
-              thumbTintColor="#FFFFFF"
-            />
-            <View style={styles.timeContainer}>
-              <Text style={styles.timeText}>{formatTime(currentTime)}</Text>
-              <Text style={styles.timeText}>{formatTime(duration)}</Text>
-            </View>
-          </View>
-
-          {/* Song info */}
-          <View style={styles.songInfoContainer}>
-            <Text style={styles.songTitle}>{songName}</Text>
-            <Text style={styles.songArtist}>Unknown Artist</Text>
-          </View>
-
-          {/* Player controls */}
-          <View style={styles.playerControlsContainer}>
-            <TouchableOpacity
-            onPress={playPreviousSong}
-            disabled={!hasMultipleSongs}>
-              <Icon name="step-backward" size={30} color={hasMultipleSongs ? "white" : "#555"} />
-            </TouchableOpacity>
-
-            <TouchableOpacity onPress={() => seekAudio(currentTime - 10)}>
-              <Icon name="rotate-left" size={30} color="white" />
-            </TouchableOpacity>
-
-            <TouchableOpacity 
-              style={styles.playPauseButton}
-              onPress={isPlaying ? pauseAudio : () => playAudio(audioUri)}
-            >
-              <Icon name={isPlaying ? 'pause' : 'play'} size={30} color="white" />
-            </TouchableOpacity>
-
-            <TouchableOpacity onPress={() => seekAudio(currentTime + 10)}>  
-              <Icon name="rotate-right" size={30} color="white" />
-            </TouchableOpacity>
-
-            <TouchableOpacity
-            onPress={playNextSong}
-            disabled={!hasMultipleSongs}>
-              <Icon name="step-forward" size={30} color={hasMultipleSongs ? "white" : "#555"} />
-            </TouchableOpacity>
-
-          </View>
-
-          {/* Volume slider */}
-          <View style={styles.volumeContainer}>
-            <Icon name="volume-down" size={20} color="#AAAAAA" />
-            <Slider
-              style={styles.volumeSlider}
-              minimumValue={0}
-              maximumValue={1}
-              value={volume}
-              onValueChange={setAudioVolume}
-              minimumTrackTintColor="#FFFFFF"
-              maximumTrackTintColor="#555555"
-              thumbTintColor="#FFFFFF"
-            />
-            <Icon name="volume-up" size={20} color="#AAAAAA" />
-          </View>
-        </View>
-      </View>
+        </ScrollView>
+      </SafeAreaView>
     </Modal>
   );
 };
@@ -317,6 +386,10 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  scrollContainer: {
+    flexGrow: 1,
+    justifyContent: 'center',
   },
   musicPlayerContainer: {
     width: '100%',
