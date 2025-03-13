@@ -38,7 +38,7 @@ interface CategoryScreenProps {
 // const CACHE_EXPIRATION_TIME = 24 * 60 * 60 * 1000; // 24 hours
 const CACHE_EXPIRATION_TIME = 30 * 1000; // 24 hours
 const MAX_FILES = 1000;
-const SCAN_DEPTH_LIMIT = 5;
+const SCAN_DEPTH_LIMIT = 100;
 const BASE_DIRECTORIES = {
   'Photos': [
     RNFS.ExternalStorageDirectoryPath,
@@ -104,7 +104,7 @@ const CategoryScreen: React.FC<CategoryScreenProps> = ({ route, navigation }) =>
   } | null>(null)
 
   const [currentAudioIndex, setCurrentAudioIndex] = useState<number>(0);
-  
+
   // Memoized file type and category matching functions
   const getFileType = useCallback((fileName: string): File['type'] => {
     const lowerName = fileName.toLowerCase();
@@ -166,7 +166,7 @@ const CategoryScreen: React.FC<CategoryScreenProps> = ({ route, navigation }) =>
 
     // Clear cache to ensure fresh data for different categories
     await AsyncStorage.removeItem(cacheKey);
-    
+
     // Check cached folders first
     const cachedFolders = await getCachedData(cacheKey);
     if (cachedFolders) {
@@ -184,49 +184,49 @@ const CategoryScreen: React.FC<CategoryScreenProps> = ({ route, navigation }) =>
     // Keep track of discovered folder paths to avoid duplicates
     const discoveredPaths = new Set<string>();
     const discoveredFolders: Folder[] = [];
-    
+
     const scanDirectory = async (dirPath: string, depth = 0) => {
       // Limit recursion depth and prevent duplicate scans
       if (depth > SCAN_DEPTH_LIMIT || discoveredPaths.has(dirPath)) return;
-      
+
       // Mark this directory as scanned
       discoveredPaths.add(dirPath);
-      
+
       try {
         const items = await RNFS.readDir(dirPath);
-        
+
         // Check if this directory contains images
-        const matchingFiles = items.filter(item => 
+        const matchingFiles = items.filter(item =>
           item.isFile() && isFileMatchingCategory(item.name, title)
         );
-        
+
         if (matchingFiles.length > 0) {
           const pathParts = dirPath.split('/');
-          let folderName = pathParts[pathParts.length - 1] || 
-                           pathParts[pathParts.length - 2] || 'Unknown';
-          
+          let folderName = pathParts[pathParts.length - 1] ||
+            pathParts[pathParts.length - 2] || 'Unknown';
+
           // Unique naming strategy
           let uniqueName = folderName;
           let counter = 1;
           while (discoveredFolders.some(f => f.name === uniqueName)) {
             uniqueName = `${folderName} (${counter++})`;
           }
-          
+
           discoveredFolders.push({
             name: uniqueName,
             path: dirPath,
             fileCount: matchingFiles.length
           });
         }
-        
+
         // Parallel subdirectory scanning with filter
         const subDirectories = items
-          .filter(item => 
-            item.isDirectory() && 
-            !SKIP_DIRECTORIES.includes(item.name) && 
+          .filter(item =>
+            item.isDirectory() &&
+            !SKIP_DIRECTORIES.includes(item.name) &&
             !item.name.startsWith('.')
           );
-        
+
         // Use Promise.all for concurrent directory scanning
         await Promise.all(
           subDirectories.map(dir => scanDirectory(dir.path, depth + 1))
@@ -248,7 +248,7 @@ const CategoryScreen: React.FC<CategoryScreenProps> = ({ route, navigation }) =>
       const sortedFolders = discoveredFolders
         .sort((a, b) => (b.fileCount || 0) - (a.fileCount || 0))
         .slice(0, 100);
-      
+
       // Set folders
       setFolders(sortedFolders);
 
@@ -284,8 +284,8 @@ const CategoryScreen: React.FC<CategoryScreenProps> = ({ route, navigation }) =>
       const folderContents = await RNFS.readDir(folderPath);
       const matchingFiles = folderContents
         .filter(item => item.isFile() && isFileMatchingCategory(item.name, route.params.title))
-        .map(file => ({ 
-          name: file.name, 
+        .map(file => ({
+          name: file.name,
           path: file.path,
           type: getFileType(file.name)
         }))
@@ -293,7 +293,7 @@ const CategoryScreen: React.FC<CategoryScreenProps> = ({ route, navigation }) =>
 
       // Cache the files for this folder
       await setCachedData(cacheKey, matchingFiles);
-        
+
       setFiles(matchingFiles);
       setSelectedFolder(folderPath);
     } catch (err) {
@@ -309,7 +309,7 @@ const CategoryScreen: React.FC<CategoryScreenProps> = ({ route, navigation }) =>
       const { title } = route.params;
       if (['Photos', 'Videos', 'Audio', 'Documents', 'APKs', 'Archives'].includes(title)) {
         await discoverFolders();
-      } 
+      }
     };
     initializeScreen();
   }, [route.params.title, discoverFolders]);
@@ -321,7 +321,7 @@ const CategoryScreen: React.FC<CategoryScreenProps> = ({ route, navigation }) =>
       // Find the index of the selected image in image files
       const imageFiles = files.filter(file => file.type === 'image');
       const index = imageFiles.findIndex(file => `file://${file.path}` === `file://${filePath}`);
-      
+
       setCurrentImageIndex(index);
       setSelectedFile(`file://${filePath}`);
       setFileType(type);
@@ -352,7 +352,7 @@ const CategoryScreen: React.FC<CategoryScreenProps> = ({ route, navigation }) =>
   const handleTrackChange = (newIndex: number) => {
     const audioFiles = files.filter(file => file.type === 'audio');
     if (audioFiles.length === 0 || newIndex < 0 || newIndex >= audioFiles.length) return;
-    
+
     const newFile = audioFiles[newIndex];
     setSelectedFile(`file://${newFile.path}`);
     setCurrentAudioIndex(newIndex);
@@ -391,10 +391,10 @@ const CategoryScreen: React.FC<CategoryScreenProps> = ({ route, navigation }) =>
       const lastModified = `${day}/${month}/${year} ${hours12}:${minutes}:${seconds} ${ampm}`;
 
       // Get image dimensions
-      const dimensions = await new Promise<{width: number, height: number}>((resolve) => {
+      const dimensions = await new Promise<{ width: number, height: number }>((resolve) => {
         Image.getSize(imageUri, (width, height) => resolve({ width, height }));
       });
-  
+
       setImageFileDetails({
         size: sizeInMB,
         lastModified,
@@ -406,35 +406,35 @@ const CategoryScreen: React.FC<CategoryScreenProps> = ({ route, navigation }) =>
       // Open details modal
       setDetailsVisible(true);
       console.log("is set details visitble: ", isDetailsVisible)
-      } catch (error) {
-        console.error('Error showing file details:', error);
-      }
-    };
+    } catch (error) {
+      console.error('Error showing file details:', error);
+    }
+  };
 
   const renderFile = ({ item }: { item: File }) => (
-    <TouchableOpacity 
-      style={styles.fileItem} 
+    <TouchableOpacity
+      style={styles.fileItem}
       onPress={() => openFile(item.path, item.type)}
     >
-      <Icon 
+      <Icon
         name={
-          item.type === 'image' ? 'file-image-o' : 
-          item.type === 'audio' ? 'file-audio-o' : 
-          item.type === 'video' ? 'file-video-o' : 
-          item.type === 'apk' ? 'android' :
-          item.type === 'archive' ? 'file-archive-o' :
-          'file-text-o'
-        } 
-        size={30} 
-        color="#666" 
+          item.type === 'image' ? 'file-image-o' :
+            item.type === 'audio' ? 'file-audio-o' :
+              item.type === 'video' ? 'file-video-o' :
+                item.type === 'apk' ? 'android' :
+                  item.type === 'archive' ? 'file-archive-o' :
+                    'file-text-o'
+        }
+        size={30}
+        color="#666"
       />
       <Text style={styles.fileName}>{item.name}</Text>
     </TouchableOpacity>
   );
 
   const renderFolder = ({ item }: { item: Folder }) => (
-    <TouchableOpacity 
-      style={styles.fileItem} 
+    <TouchableOpacity
+      style={styles.fileItem}
       onPress={() => loadFiles(item.path)}
     >
       <Icon name="folder" size={30} color="#FFD700" />
@@ -499,34 +499,34 @@ const CategoryScreen: React.FC<CategoryScreenProps> = ({ route, navigation }) =>
   }, [loading, selectedFolder, route.params.title, folders, files]);
 
   const closeDetailsModal = () => {
-      setDetailsVisible(false);
-      setImageFileDetails(null);
-    }; 
+    setDetailsVisible(false);
+    setImageFileDetails(null);
+  };
 
-  const getAudioFileDetails = async (filePath: string) =>  {
+  const getAudioFileDetails = async (filePath: string) => {
     try {
       const fileStat = await RNFS.stat(filePath);
       console.log('File Size:', fileStat.size); // in bytes
       console.log('Modified Date:', fileStat.mtime); // Date object
-  
+
       // Optional: format the size to MB
       const sizeInMB = (fileStat.size / (1024 * 1024)).toFixed(2);
-  
+
       // Format date
       const dateObj = new Date(fileStat.mtime);
 
       // Format: 16 November 2024
-      const formattedDate = dateObj.toLocaleDateString('en-GB', { 
-        day: 'numeric', 
-        month: 'long', 
-        year: 'numeric' 
+      const formattedDate = dateObj.toLocaleDateString('en-GB', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric'
       });
 
       // Format: 4:11 pm
-      const formattedTime = dateObj.toLocaleTimeString('en-US', { 
-        hour: 'numeric', 
-        minute: '2-digit', 
-        hour12: true 
+      const formattedTime = dateObj.toLocaleTimeString('en-US', {
+        hour: 'numeric',
+        minute: '2-digit',
+        hour12: true
       }).toLowerCase(); // Make sure 'PM' becomes 'pm'
 
       // Final format: 16 November 2024 at 4:11 pm
@@ -540,98 +540,98 @@ const CategoryScreen: React.FC<CategoryScreenProps> = ({ route, navigation }) =>
       console.error('Error fetching file details:', error);
     }
   };
-    
+
 
   return (
-      <View style={styles.container}>
+    <View style={styles.container}>
 
-        {renderContent}
+      {renderContent}
 
-        {/* Advanced Image Viewer with Swipe and Header */}
-        {fileType === 'image' && (
-          <ImageView
-            images={files
+      {/* Advanced Image Viewer with Swipe and Header */}
+      {fileType === 'image' && (
+        <ImageView
+          images={files
+            .filter(file => file.type === 'image')
+            .map(file => ({ uri: `file://${file.path}` }))}
+          imageIndex={currentImageIndex}
+          visible={true}
+          onRequestClose={closeModal}
+          presentationStyle="overFullScreen" // new
+          swipeToCloseEnabled={true} // new
+          HeaderComponent={({ imageIndex }) => {
+            const currentFile = files
               .filter(file => file.type === 'image')
-              .map(file => ({ uri: `file://${file.path}` }))}
-            imageIndex={currentImageIndex}
-            visible={true}
-            onRequestClose={closeModal}
-            presentationStyle="fullScreen" // new
-            swipeToCloseEnabled={true} // new
-            HeaderComponent={({ imageIndex }) => {
-              const currentFile = files
-                .filter(file => file.type === 'image')
-                [imageIndex];
+            [imageIndex];
 
-              return (
-                <View style={styles.imageViewerHeader}>
+            return (
+              <View style={styles.imageViewerHeader}>
 
-                  <View style={styles.detailsIconContainer}>
-                  <TouchableOpacity 
+                <View style={styles.detailsIconContainer}>
+                  <TouchableOpacity
                     onPress={() => showImageFileDetails(`file://${files.filter(file => file.type === 'image')[imageIndex].path}`)}
                   >
                     <Icon name="info-circle" size={30} color="white" />
                   </TouchableOpacity>
-                  </View>
-                  
-                  <Text style={styles.imageTitleName} numberOfLines={1} ellipsizeMode="tail">
-                    {currentFile?.name}
-                  </Text>
-
-                  <TouchableOpacity
-                    style={styles.closeIconContainer}
-                    onPress={closeModal}
-                  >
-                    <Icon name="close" size={30} color="white" />
-                  </TouchableOpacity>
                 </View>
-      
-              );
-            }}
-            FooterComponent={({ imageIndex }) => {
-              const imageFiles = files.filter(file => file.type === 'image');
-              return (
-                <View style={styles.imageViewerFooter}>
-                  <Text style={styles.imageIndexFooter}>
-                    {imageIndex + 1} / {imageFiles.length}
-                  </Text>
-                </View>
-              );
-            }}
-          />
-        )}
-        
-        {/* File Details Modal */}
-        {isDetailsVisible && isImageViewerVisible && (
-            <BottomsheetModal
-              visible={isDetailsVisible}
-              onDismiss={closeDetailsModal}
-              containerStyle={styles.fileDetailsBottomSheet}
-              fileDetails={imageFileDetails}
-            >
-            </BottomsheetModal>
-        )} 
 
-        {fileType === 'audio' && selectedFile && (
-          <AudioPlayerModal 
-            visible={true} 
-            audioUri={selectedFile} 
-            fileDetails={audioFileDetails}
-            onRequestClose={closeModal} 
-            audioFiles={files.filter(file => file.type === 'audio') as { name: string; path: string; type: 'audio'; }[]}
-            currentIndex={currentAudioIndex}
-            onChangeTrack={handleTrackChange}
-          />
-        )}
+                <Text style={styles.imageTitleName} numberOfLines={1} ellipsizeMode="tail">
+                  {currentFile?.name}
+                </Text>
 
-        {fileType === 'video' && selectedFile && (
-          <VideoPlayerModal 
-            visible={true} 
-            videoUri={selectedFile} 
-            onRequestClose={closeModal} 
-          />
-        )}
-      </View>
+                <TouchableOpacity
+                  style={styles.closeIconContainer}
+                  onPress={closeModal}
+                >
+                  <Icon name="close" size={30} color="white" />
+                </TouchableOpacity>
+              </View>
+
+            );
+          }}
+          FooterComponent={({ imageIndex }) => {
+            const imageFiles = files.filter(file => file.type === 'image');
+            return (
+              <View style={styles.imageViewerFooter}>
+                <Text style={styles.imageIndexFooter}>
+                  {imageIndex + 1} / {imageFiles.length}
+                </Text>
+              </View>
+            );
+          }}
+        />
+      )}
+
+      {/* File Details Modal */}
+      {isDetailsVisible && isImageViewerVisible && (
+        <BottomsheetModal
+          visible={isDetailsVisible}
+          onDismiss={closeDetailsModal}
+          containerStyle={styles.fileDetailsBottomSheet}
+          fileDetails={imageFileDetails}
+        >
+        </BottomsheetModal>
+      )}
+
+      {fileType === 'audio' && selectedFile && (
+        <AudioPlayerModal
+          visible={true}
+          audioUri={selectedFile}
+          fileDetails={audioFileDetails}
+          onRequestClose={closeModal}
+          audioFiles={files.filter(file => file.type === 'audio') as { name: string; path: string; type: 'audio'; }[]}
+          currentIndex={currentAudioIndex}
+          onChangeTrack={handleTrackChange}
+        />
+      )}
+
+      {fileType === 'video' && selectedFile && (
+        <VideoPlayerModal
+          visible={true}
+          videoUri={selectedFile}
+          onRequestClose={closeModal}
+        />
+      )}
+    </View>
   );
 };
 

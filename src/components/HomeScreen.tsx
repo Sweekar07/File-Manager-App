@@ -7,7 +7,7 @@ import Icon from 'react-native-vector-icons/FontAwesome';
 import RNFS from 'react-native-fs';
 import styles from '../styles/styles';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { requestAllFilePermissions, checkPermissions, getCachedPermissionStatus  } from '../utils/permissions';
+import { requestAllFilePermissions, checkPermissions, getCachedPermissionStatus } from '../utils/permissions';
 
 interface HomeScreenProps {
   navigation: any;
@@ -48,7 +48,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
       }
       // If cachedStatus is false or null, we'll wait for the full check
     };
-    
+
     checkCachedPermissions();
   }, []);
 
@@ -57,9 +57,9 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     const handlePermissions = async () => {
       // First check if permissions are already granted
       const alreadyGranted = await checkPermissions();
-      
+
       setPermissionsGranted(alreadyGranted);
-      
+
       if (alreadyGranted) {
         // If permissions are already granted, no need to request
         calculateStorageUsage();
@@ -68,7 +68,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
         // Only request permissions if not already granted
         const granted = await requestAllFilePermissions();
         setPermissionsGranted(granted);
-        
+
         if (granted) {
           // Only load data if permissions are granted
           calculateStorageUsage();
@@ -83,7 +83,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
         }
       }
     };
-    
+
     handlePermissions();
   }, []);
 
@@ -151,6 +151,9 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
         }
       }
 
+      // Skip directories - same as in CategoryScreen.tsx
+      const SKIP_DIRECTORIES = ['Android', '.', '..', 'Android/data', '.thumbnails', '.Trash', '$RECYCLE.BIN']
+
       const countFiles = async (path: string, regex: RegExp): Promise<number> => {
         try {
           const files = await RNFS.readDir(path);
@@ -160,7 +163,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
           for (const file of files) {
             if (file.isFile() && regex.test(file.name)) {
               count++;
-            } else if (file.isDirectory()) {
+            } else if (file.isDirectory() && !SKIP_DIRECTORIES.includes(file.name) && !file.name.startsWith('.')) {
               count += await countFiles(file.path, regex);
             }
           }

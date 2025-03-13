@@ -64,27 +64,19 @@ const doFullPermissionCheck = async (): Promise<boolean> => {
         PERMISSIONS.ANDROID.READ_MEDIA_AUDIO,
       ];
       const results = await Promise.all(permissions.map((permission) => check(permission)));
-      return results.every(result => 
-        result === RESULTS.GRANTED || result === RESULTS.LIMITED
-      );
-    } else if (Platform.Version >= 29) {
-       // Android 10+ (API 29+)
-       const permissions = [
-        PERMISSIONS.ANDROID.READ_EXTERNAL_STORAGE,
-        PERMISSIONS.ANDROID.READ_MEDIA_IMAGES,
-        PERMISSIONS.ANDROID.READ_MEDIA_VIDEO,
-        PERMISSIONS.ANDROID.READ_MEDIA_AUDIO,
-      ];
-      const results = await Promise.all(permissions.map((permission) => check(permission)));
       return results.every(result =>
         result === RESULTS.GRANTED || result === RESULTS.LIMITED
       );
+    } else if (Platform.Version >= 29) {
+      // Android 10+ (API 29+)
+      const readResult = await check(PERMISSIONS.ANDROID.READ_EXTERNAL_STORAGE);
+      return readResult === RESULTS.GRANTED || readResult === RESULTS.LIMITED;
     } else {
       // Earlier Android versions
       const readResult = await check(PERMISSIONS.ANDROID.READ_EXTERNAL_STORAGE);
       const writeResult = await check(PERMISSIONS.ANDROID.WRITE_EXTERNAL_STORAGE);
-      return (readResult === RESULTS.GRANTED || readResult === RESULTS.LIMITED) && 
-             (writeResult === RESULTS.GRANTED || writeResult === RESULTS.LIMITED);
+      return (readResult === RESULTS.GRANTED || readResult === RESULTS.LIMITED) &&
+        (writeResult === RESULTS.GRANTED || writeResult === RESULTS.LIMITED);
     }
   } catch (err) {
     console.warn('Permission check failed:', err);
@@ -159,10 +151,10 @@ export const requestAllFilePermissions = async (): Promise<boolean> => {
         PERMISSIONS.ANDROID.READ_MEDIA_AUDIO,
       ];
       const results = await Promise.all(permissions.map((permission) => request(permission)));
-      
+
       // Mark that we've requested permissions
       await markPermissionsAsRequested();
-      
+
       finalResult = results.every(result => result === RESULTS.GRANTED);
       if (!finalResult) {
         showPermissionAlert();
@@ -170,10 +162,10 @@ export const requestAllFilePermissions = async (): Promise<boolean> => {
     } else if (Platform.Version >= 29) {
       // Android 10+ (API 29+) - we need READ_EXTERNAL_STORAGE
       const granted = await request(PERMISSIONS.ANDROID.READ_EXTERNAL_STORAGE);
-      
+
       // Mark that we've requested permissions
       await markPermissionsAsRequested();
-      
+
       finalResult = granted === RESULTS.GRANTED;
       if (!finalResult) {
         showPermissionAlert();
@@ -182,10 +174,10 @@ export const requestAllFilePermissions = async (): Promise<boolean> => {
       // Earlier Android versions - need READ and WRITE
       const readGranted = await request(PERMISSIONS.ANDROID.READ_EXTERNAL_STORAGE);
       const writeGranted = await request(PERMISSIONS.ANDROID.WRITE_EXTERNAL_STORAGE);
-      
+
       // Mark that we've requested permissions
       await markPermissionsAsRequested();
-      
+
       finalResult = readGranted === RESULTS.GRANTED && writeGranted === RESULTS.GRANTED;
       if (!finalResult) {
         showPermissionAlert();
