@@ -104,6 +104,7 @@ const CategoryScreen: React.FC<CategoryScreenProps> = ({ route, navigation }) =>
   } | null>(null)
 
   const [currentAudioIndex, setCurrentAudioIndex] = useState<number>(0);
+  const [currentVideoIndex, setCurrentVideoIndex] = useState<number>(0);
 
   // Memoized file type and category matching functions
   const getFileType = useCallback((fileName: string): File['type'] => {
@@ -335,6 +336,14 @@ const CategoryScreen: React.FC<CategoryScreenProps> = ({ route, navigation }) =>
       setSelectedFile(`file://${filePath}`);
       setFileType(type);
       getAudioFileDetails(`file://${filePath}`);
+    } else if (type === 'video') {
+      // Find the index of the selected video in video files
+      const videoFiles = files.filter(file => file.type === 'video');
+      const index = videoFiles.findIndex(file => file.path === filePath);
+  
+      setCurrentVideoIndex(index);
+      setSelectedFile(`file://${filePath}`);
+      setFileType(type);
     } else {
       setSelectedFile(`file://${filePath}`);
       setFileType(type);
@@ -629,6 +638,8 @@ const CategoryScreen: React.FC<CategoryScreenProps> = ({ route, navigation }) =>
           visible={true}
           videoUri={selectedFile}
           onRequestClose={closeModal}
+          videoFiles={files.filter(file => file.type === 'video') as { name: string; path: string; type: 'video'; }[]}
+          currentIndex={currentVideoIndex}
         />
       )}
     </View>
