@@ -2,22 +2,25 @@
 
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import RNFS from 'react-native-fs';
-import { 
-  Modal, 
-  TouchableOpacity, 
-  View, 
-  Text, 
-  Dimensions, 
-  StatusBar, 
-  StyleSheet 
+import {
+  Modal,
+  TouchableOpacity,
+  View,
+  Text,
+  Dimensions,
+  StatusBar,
+  StyleSheet,
+  SafeAreaView,
+  ScrollView
 } from 'react-native';
 import Video, { VideoRef } from 'react-native-video';
 import Icon from 'react-native-vector-icons/FontAwesome';
-import { 
-  PanGestureHandler, 
-  State, 
-  GestureHandlerRootView 
+import {
+  PanGestureHandler,
+  State,
+  GestureHandlerRootView
 } from 'react-native-gesture-handler';
+import Slider from '@react-native-community/slider'; // Import the slider library
 
 interface VideoPlayerModalProps {
   visible: boolean;
@@ -33,12 +36,12 @@ interface VideoFileDetails {
   duration?: string;
 }
 
-const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({ 
-  visible, 
-  videoUri, 
-  onRequestClose, 
-  videoFiles = [], 
-  currentIndex = 0 
+const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
+  visible,
+  videoUri,
+  onRequestClose,
+  videoFiles = [],
+  currentIndex = 0
 }) => {
   const [currentVideoIndex, setCurrentVideoIndex] = useState(currentIndex);
   const [isControlsVisible, setIsControlsVisible] = useState(true);
@@ -47,10 +50,13 @@ const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
   const [isSwipeActive, setIsSwipeActive] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
-  
+  const [isSeeking, setIsSeeking] = useState(false);
+  const [seekValue, setSeekValue] = useState(0);
+
   const [showOptions, setShowOptions] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
   const [videoDetails, setVideoDetails] = useState<VideoFileDetails | null>(null);
+  const [miniPlayerMode, setMiniPlayerMode] = useState(false);
 
   const videoRef = useRef<VideoRef>(null);
   const { width: screenWidth } = Dimensions.get('window');
@@ -58,6 +64,7 @@ const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
 
   const [videoDuration, setVideoDuration] = useState<string | null>(null);
 
+  const [lastKnownTimestamp, setLastKnownTimestamp] = useState(0);
 
   // Get the current video URI
   const getCurrentVideoUri = useCallback(() => {
@@ -79,19 +86,19 @@ const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
     try {
       const fileStat = await RNFS.stat(filePath);
       const sizeInMB = (fileStat.size / (1024 * 1024)).toFixed(2);
-  
+
       const dateObj = new Date(fileStat.mtime);
       const formattedDate = dateObj.toLocaleDateString('en-GB', {
         day: 'numeric', month: 'long', year: 'numeric'
       });
-  
+
       const formattedTime = dateObj.toLocaleTimeString('en-US', {
         hour: 'numeric', minute: '2-digit', hour12: true
       }).toLowerCase();
-  
+
       const finalFormattedDate = `${formattedDate} at ${formattedTime}`;
-  
-      setVideoDetails({ size: sizeInMB, modifiedDate: finalFormattedDate, duration: videoDuration || "Unknown"  });
+
+      setVideoDetails({ size: sizeInMB, modifiedDate: finalFormattedDate, duration: videoDuration || "Unknown" });
       setShowDetails(true);
       setShowOptions(false); // Close options when opening details
     } catch (error) {
@@ -102,12 +109,12 @@ const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
   // Show controls temporarily and hide after a timeout
   const showControlsTemporarily = useCallback(() => {
     setIsControlsVisible(true);
-    
+
     // Clear existing timeout
     if (controlsTimeoutRef.current) {
       clearTimeout(controlsTimeoutRef.current);
     }
-    
+
     // Set new timeout to hide controls
     controlsTimeoutRef.current = setTimeout(() => {
       setIsControlsVisible(false);
@@ -152,65 +159,98 @@ const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
 
   // Handle video progress updates
   const handleProgress = useCallback((data: { currentTime: number }) => {
-    setCurrentTime(data.currentTime);
-  }, []);
+    if (!isSeeking) {
+      setCurrentTime(data.currentTime);
+      setLastKnownTimestamp(data.currentTime);
+    }
+  }, [isSeeking]);
 
   // Handle video load event
   const handleLoad = useCallback((data: { duration: number }) => {
     const formattedDuration = formatTime(data.duration);
     setVideoDuration(formattedDuration);
     setDuration(data.duration);
+
+    // Seek to the last known timestamp when loading
+    if (videoRef.current && lastKnownTimestamp > 0) {
+      videoRef.current.seek(lastKnownTimestamp);
+    }
+  }, [formatTime, lastKnownTimestamp]);
+
+  // Handle seeking start
+  const handleSeekStart = useCallback(() => {
+    setIsSeeking(true);
+    // setIsPlaying(false);
   }, []);
+
+  // Handle seeking
+  const handleSeekChange = useCallback((value: number) => {
+    setSeekValue(value);
+  }, []);
+
+  // Handle seeking end
+  const handleSeekComplete = useCallback((value: number) => {
+    if (videoRef.current) {
+      videoRef.current.seek(value);
+    }
+    setCurrentTime(value);
+    setLastKnownTimestamp(value);
+    setIsSeeking(false);
+    setIsPlaying(isPlaying);
+    showControlsTemporarily();
+  }, [showControlsTemporarily]);
 
   // Handle swipe gestures for navigating between videos
   const handleSwipe = useCallback((event: any) => {
+    if (miniPlayerMode) return; // Disable swipe in mini player mode
+
     const { nativeEvent } = event;
-    
+
     if (nativeEvent.state === State.ACTIVE) {
       setIsSwipeActive(true);
       setSwipeDistance(nativeEvent.translationX);
-    } 
+    }
     else if (nativeEvent.state === State.END) {
       setIsSwipeActive(false);
       setSwipeDistance(0);
-      
+
       // Threshold for swipe detection
       const swipeThreshold = screenWidth / 3;
-      
+
       if (nativeEvent.translationX > swipeThreshold && currentVideoIndex > 0) {
         // Swipe right - go to previous video
         setCurrentVideoIndex(prevIndex => prevIndex - 1);
-      } 
+      }
       else if (nativeEvent.translationX < -swipeThreshold && currentVideoIndex < videoFiles.length - 1) {
         // Swipe left - go to next video
         setCurrentVideoIndex(prevIndex => prevIndex + 1);
       }
     }
-  }, [currentVideoIndex, screenWidth, videoFiles.length]);
+  }, [currentVideoIndex, screenWidth, videoFiles.length, miniPlayerMode]);
 
   // Render swipe indicator when user is swiping
   const renderSwipeIndicator = useCallback(() => {
-    if (!isSwipeActive || Math.abs(swipeDistance) < 50) return null;
-    
+    if (!isSwipeActive || Math.abs(swipeDistance) < 50 || miniPlayerMode) return null;
+
     const isNext = swipeDistance < 0;
     const isValid = isNext ? currentVideoIndex < videoFiles.length - 1 : currentVideoIndex > 0;
-    
+
     return (
       <View style={[
         styles.swipeIndicator,
         { left: isNext ? null : 20, right: isNext ? 20 : null }
       ]}>
-        <Icon 
-          name={isNext ? 'arrow-right' : 'arrow-left'} 
-          size={30} 
-          color={isValid ? 'white' : 'gray'} 
+        <Icon
+          name={isNext ? 'arrow-right' : 'arrow-left'}
+          size={30}
+          color={isValid ? 'white' : 'gray'}
         />
         <Text style={styles.swipeIndicatorText}>
           {isNext ? 'Next video' : 'Previous video'}
         </Text>
       </View>
     );
-  }, [isSwipeActive, swipeDistance, currentVideoIndex, videoFiles.length]);
+  }, [isSwipeActive, swipeDistance, currentVideoIndex, videoFiles.length, miniPlayerMode]);
 
   // Show file info modal
   const handleShowFileInfo = useCallback(() => {
@@ -223,10 +263,23 @@ const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
     setShowDetails(false);
   }, []);
 
+  // Toggle mini player mode
+  const toggleMiniPlayerMode = useCallback(() => {
+    setMiniPlayerMode(!miniPlayerMode);
+    setIsControlsVisible(false);
+  }, [miniPlayerMode]);
+
+  // Close mini player
+  const closeMiniPlayer = useCallback(() => {
+    if (miniPlayerMode) {
+      onRequestClose();
+    }
+  }, [miniPlayerMode, onRequestClose]);
+
   // Initialize controls and cleanup on mount/unmount
   useEffect(() => {
     showControlsTemporarily();
-    
+
     return () => {
       if (controlsTimeoutRef.current) {
         clearTimeout(controlsTimeoutRef.current);
@@ -238,154 +291,260 @@ const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
   useEffect(() => {
     setIsPlaying(true);
     setCurrentTime(0);
+    setLastKnownTimestamp(0);
   }, [currentVideoIndex]);
 
-  return (
-    <Modal visible={visible} animationType="fade" transparent={false} onRequestClose={onRequestClose}>
-      <StatusBar hidden />
-      <GestureHandlerRootView style={styles.fullScreenContainer}>
-        <PanGestureHandler onGestureEvent={handleSwipe} onHandlerStateChange={handleSwipe}>
-          <View style={styles.fullScreenContainer}>
-            <TouchableOpacity 
-              activeOpacity={1}
-              style={styles.fullScreenContainer} 
-              onPress={toggleControls}
+  // Render mini player UI
+  const renderMiniPlayer = () => {
+    return (
+      <View style={styles.miniPlayerContainer}>
+        <View style={styles.miniPlayerTopBar}>
+          <TouchableOpacity
+            onPress={toggleMiniPlayerMode}
+            style={styles.miniPlayerExpand}
+          >
+            <Icon name="expand" size={18} color="white" />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            onPress={onRequestClose}
+            style={styles.miniPlayerClose}
+          >
+            <Icon name="times" size={18} color="white" />
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.miniPlayerVideoContainer}>
+          <Video
+            ref={videoRef}
+            source={{ uri: getCurrentVideoUri() }}
+            style={styles.miniPlayerVideo}
+            resizeMode="contain"
+            paused={!isPlaying}
+            repeat={false}
+            onProgress={handleProgress}
+            onLoad={handleLoad}
+          />
+        </View>
+
+        <View style={styles.miniPlayerProgressContainer}>
+          <Slider
+            style={styles.miniPlayerSlider}
+            minimumValue={0}
+            maximumValue={duration > 0 ? duration : 1}
+            value={isSeeking ? seekValue : currentTime}
+            minimumTrackTintColor="#A020F0"
+            maximumTrackTintColor="rgba(160, 32, 240, 0.3)"
+            thumbTintColor="#A020F0"
+            onSlidingStart={handleSeekStart}
+            onValueChange={handleSeekChange}
+            onSlidingComplete={handleSeekComplete}
+          />
+        </View>
+
+        <View style={styles.miniPlayerControlsContainer}>
+          <Text style={styles.miniPlayerTimeText}>
+            {formatTime(currentTime)} / {formatTime(duration)}
+          </Text>
+
+          <View style={styles.miniPlayerButtonGroup}>
+            <TouchableOpacity
+              style={styles.miniPlayerControlButton}
+              onPress={skipBackward}
             >
-              <Video
-                ref={videoRef}
-                source={{ uri: getCurrentVideoUri() }}
-                style={styles.fullScreenVideo}
-                resizeMode="contain"
-                paused={!isPlaying}
-                controls={false}
-                repeat={false}
-                onProgress={handleProgress}
-                onLoad={handleLoad}
+              <Icon name="backward" size={16} color="white" />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.miniPlayerControlButton}
+              onPress={togglePlayPause}
+            >
+              <Icon
+                name={isPlaying ? "pause" : "play"}
+                size={16}
+                color="white"
               />
-              
-              {renderSwipeIndicator()}
-              
-              {isControlsVisible && (
-                <View style={styles.videoControlsOverlay}>
-                  {/* Top controls */}
-                  <View style={styles.videoControlsHeader}>
-                    <TouchableOpacity 
-                      onPress={onRequestClose}
-                      style={styles.videoBackButton}
-                    >
-                      <Icon name="arrow-left" size={24} color="white" />
-                    </TouchableOpacity>
-                    
-                    {videoFiles.length > 0 && (
-                      <Text style={styles.videoTitle} numberOfLines={1}>
-                        {videoFiles[currentVideoIndex].name}
-                      </Text>
-                    )}
+            </TouchableOpacity>
 
-                    {/* Three-dot menu */}
-                    <TouchableOpacity onPress={() => setShowOptions(true)} style={{ padding: 5 }}>
-                      <Icon name="ellipsis-v" size={24} color="white" />
-                    </TouchableOpacity>
-                  </View>
-
-                  {/* Options Modal */}
-                  {showOptions && (
-                    <View style={styles.optionsContainer}>
-                      <TouchableOpacity onPress={handleShowFileInfo}>
-                        <Text style={styles.optionText}>File info</Text>
-                      </TouchableOpacity>
-                    </View>
-                  )}
-                  
-                  {/* Center play/pause button */}
-                  <TouchableOpacity 
-                    onPress={togglePlayPause}
-                    style={styles.playPauseButton}
-                  >
-                    <Icon name={isPlaying ? "pause" : "play"} size={40} color="white" />
-                  </TouchableOpacity>
-                  
-                  {/* Bottom controls */}
-                  <View style={styles.videoControlsFooter}>
-                    <View style={styles.timeContainer}>
-                      <Text style={styles.timeText}>{formatTime(currentTime)}</Text>
-                      <View style={styles.progressBar}>
-                        <View 
-                          style={[
-                            styles.progressFill, 
-                            { width: `${duration > 0 ? (currentTime / duration) * 100 : 0}%` }
-                          ]} 
-                        />
-                      </View>
-                      <Text style={styles.timeText}>{formatTime(duration)}</Text>
-                    </View>
-                    
-                    <View style={styles.controlButtonsRow}>
-                      {videoFiles.length > 1 && currentVideoIndex > 0 && (
-                        <TouchableOpacity 
-                          style={styles.controlButton}
-                          onPress={() => setCurrentVideoIndex(prevIndex => prevIndex - 1)}
-                        >
-                          <Icon name="step-backward" size={20} color="white" />
-                        </TouchableOpacity>
-                      )}
-                      
-                      <TouchableOpacity 
-                        style={styles.controlButton}
-                        onPress={skipBackward}
-                      >
-                        <View style={styles.skipButtonContent}>
-                          <Icon name="backward" size={20} color="white" />
-                        </View>
-                      </TouchableOpacity>
-                      
-                      <TouchableOpacity 
-                        style={styles.playButton}
-                        onPress={togglePlayPause}
-                      >
-                        <Icon name={isPlaying ? "pause" : "play"} size={24} color="white" />
-                      </TouchableOpacity>
-                      
-                      <TouchableOpacity 
-                        style={styles.controlButton}
-                        onPress={skipForward}
-                      >
-                        <View style={styles.skipButtonContent}>
-                          <Icon name="forward" size={20} color="white" />
-                        </View>
-                      </TouchableOpacity>
-                      
-                      {videoFiles.length > 1 && currentVideoIndex < videoFiles.length - 1 && (
-                        <TouchableOpacity 
-                          style={styles.controlButton}
-                          onPress={() => setCurrentVideoIndex(prevIndex => prevIndex + 1)}
-                        >
-                          <Icon name="step-forward" size={20} color="white" />
-                        </TouchableOpacity>
-                      )}
-                    </View>
-                    
-                    {videoFiles.length > 0 && (
-                      <Text style={styles.videoCounter}>
-                        {currentVideoIndex + 1} / {videoFiles.length}
-                      </Text>
-                    )}
-                  </View>
-                </View>
-              )}
+            <TouchableOpacity
+              style={styles.miniPlayerControlButton}
+              onPress={skipForward}
+            >
+              <Icon name="forward" size={16} color="white" />
             </TouchableOpacity>
           </View>
-        </PanGestureHandler>
-      </GestureHandlerRootView>
+        </View>
+      </View>
+    );
+  };
+
+  // Main render
+  return (
+    <Modal visible={visible} animationType="fade" transparent={true} onRequestClose={onRequestClose}>
+      <StatusBar hidden={!miniPlayerMode} />
+
+      {miniPlayerMode ? (
+        renderMiniPlayer()
+      ) : (
+        <GestureHandlerRootView style={styles.fullScreenContainer}>
+          <PanGestureHandler onGestureEvent={handleSwipe} onHandlerStateChange={handleSwipe}>
+            <SafeAreaView style={styles.fullScreenContainer}>
+              <TouchableOpacity
+                activeOpacity={1}
+                style={styles.fullScreenContainer}
+                onPress={toggleControls}
+              >
+                <Video
+                  ref={videoRef}
+                  source={{ uri: getCurrentVideoUri() }}
+                  style={styles.fullScreenVideo}
+                  resizeMode="contain"
+                  paused={!isPlaying}
+                  controls={false}
+                  repeat={false}
+                  onProgress={handleProgress}
+                  onLoad={handleLoad}
+                />
+
+                {renderSwipeIndicator()}
+
+                {isControlsVisible && (
+                  <View style={styles.videoControlsOverlay}>
+                    {/* Top controls */}
+                    <View style={styles.videoControlsHeader}>
+                      <TouchableOpacity
+                        onPress={onRequestClose}
+                        style={styles.videoBackButton}
+                      >
+                        <Icon name="arrow-left" size={24} color="white" />
+                      </TouchableOpacity>
+
+                      {videoFiles.length > 0 && (
+                        <Text style={styles.videoTitle} numberOfLines={1}>
+                          {videoFiles[currentVideoIndex].name}
+                        </Text>
+                      )}
+
+                      {/* Three-dot menu */}
+                      <TouchableOpacity onPress={() => setShowOptions(true)} style={{ padding: 5 }}>
+                        <Icon name="ellipsis-v" size={24} color="white" />
+                      </TouchableOpacity>
+                    </View>
+
+                    {/* Options Modal */}
+                    {showOptions && (
+                      <View style={styles.optionsContainer}>
+                        <TouchableOpacity onPress={handleShowFileInfo}>
+                          <Text style={styles.optionText}>File info</Text>
+                        </TouchableOpacity>
+                      </View>
+                    )}
+
+                    {/* Center play/pause button */}
+                    <TouchableOpacity
+                      onPress={togglePlayPause}
+                      style={styles.centerPlayButton}
+                    >
+                      <Icon name={isPlaying ? "pause" : "play"} size={40} color="white" />
+                    </TouchableOpacity>
+
+                    {/* Bottom controls */}
+                    <View style={styles.videoControlsFooter}>
+                      {/* Progress Bar - Using React Native Slider */}
+                      <View style={styles.progressContainer}>
+                        <Slider
+                          style={styles.slider}
+                          minimumValue={0}
+                          maximumValue={duration > 0 ? duration : 1}
+                          value={isSeeking ? seekValue : currentTime}
+                          minimumTrackTintColor="white"
+                          maximumTrackTintColor="rgba(255, 255, 255, 0.3)"
+                          thumbTintColor="white"
+                          onSlidingStart={handleSeekStart}
+                          onValueChange={handleSeekChange}
+                          onSlidingComplete={handleSeekComplete}
+                        />
+                      </View>
+
+                      {/* Controls and Time Display */}
+                      <View style={styles.controlsTimeContainer}>
+                        {/* Control Buttons */}
+                        <View style={styles.controlButtonsRow}>
+                          <TouchableOpacity style={styles.circleButton} onPress={togglePlayPause}>
+                            <Icon name={isPlaying ? "pause" : "play"} size={20} color="white" />
+                          </TouchableOpacity>
+
+                          {/* {videoFiles.length > 1 && currentVideoIndex > 0 && (
+                            <TouchableOpacity
+                              style={styles.circleButton}
+                              onPress={() => setCurrentVideoIndex(prevIndex => prevIndex - 1)}
+                            >
+                              <Icon name="step-backward" size={18} color="white" />
+                            </TouchableOpacity>
+                          )} */}
+
+                          <TouchableOpacity
+                            style={styles.circleButton}
+                            onPress={skipBackward}
+                          >
+                            <Icon name="backward" size={18} color="white" />
+                          </TouchableOpacity>
+
+                          <TouchableOpacity
+                            style={styles.circleButton}
+                            onPress={skipForward}
+                          >
+                            <Icon name="forward" size={18} color="white" />
+                          </TouchableOpacity>
+
+                          {/* {videoFiles.length > 1 && currentVideoIndex < videoFiles.length - 1 && (
+                            <TouchableOpacity
+                              style={styles.circleButton}
+                              onPress={() => setCurrentVideoIndex(prevIndex => prevIndex + 1)}
+                            >
+                              <Icon name="step-forward" size={18} color="white" />
+                            </TouchableOpacity>
+                          )} */}
+                        </View>
+
+                        {/* Time Display */}
+                        <View style={styles.timeDisplay}>
+                          <Text style={styles.timeText}>
+                            {isSeeking ? formatTime(seekValue) : formatTime(currentTime)} / {formatTime(duration)}
+                          </Text>
+                        </View>
+
+                        {/* Settings Button */}
+                        <View style={styles.settingsContainer}>
+                          <TouchableOpacity style={styles.circleButton}>
+                            <Icon name="cog" size={20} color="white" />
+                          </TouchableOpacity>
+
+                          <TouchableOpacity
+                            style={styles.circleButton}
+                            onPress={toggleMiniPlayerMode}
+                          >
+                            <Icon name="compress" size={18} color="white" />
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    </View>
+                  </View>
+                )}
+              </TouchableOpacity>
+            </SafeAreaView>
+          </PanGestureHandler>
+        </GestureHandlerRootView>
+      )}
 
       {/* Video Details Modal */}
-      <Modal 
-        visible={showDetails} 
-        transparent={false} 
-        animationType="slide" 
+      <Modal
+        visible={showDetails}
+        transparent={false}
+        animationType="slide"
         onRequestClose={handleCloseDetails}
       >
-        <View style={styles.detailsContainer}>
+        <SafeAreaView style={styles.detailsContainer}>
 
           {/* Top 40% Section with Back Icon and Video Logo */}
           <View style={styles.detailsTopSection}>
@@ -401,11 +560,11 @@ const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
           </View>
 
           {/* Bottom 60% Details  */}
-          <View style={styles.detailsBottomSection}>
+          <ScrollView style={styles.detailsBottomSection}>
             <Text style={styles.detailTitle}>
               {videoFiles[currentVideoIndex]?.name || 'Unknown Video'}
             </Text>
-            
+
             {/* Video Size */}
             <View style={styles.detailContainer}>
               <Icon name="film" size={30} color="#777" style={styles.detailIcon} />
@@ -422,9 +581,9 @@ const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
                 <Text style={styles.detailItemBold}>Modified {videoDetails?.modifiedDate}</Text>
               </View>
             </View>
-          </View>
-        </View>
-      </Modal>  
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
     </Modal>
   );
 };
@@ -443,12 +602,13 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     backgroundColor: 'rgba(0, 0, 0, 0.3)',
     justifyContent: 'space-between',
-    padding: 20,
+    padding: 0,
   },
   videoControlsHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     marginTop: 10,
+    paddingHorizontal: 15,
   },
   videoBackButton: {
     padding: 10,
@@ -460,65 +620,57 @@ const styles = StyleSheet.create({
     marginLeft: 15,
     flex: 1,
   },
-  playPauseButton: {
+  centerPlayButton: {
     alignSelf: 'center',
     padding: 15,
     borderRadius: 40,
     backgroundColor: 'rgba(0, 0, 0, 0.5)',
   },
   videoControlsFooter: {
-    marginBottom: 20,
+    marginBottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
   },
-  timeContainer: {
+  progressContainer: {
+    paddingHorizontal: 5,
+    paddingVertical: 0,
+  },
+  slider: {
+    width: '100%',
+    height: 60,
+  },
+  controlsTimeContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 15,
-  },
-  timeText: {
-    color: 'white',
-    fontSize: 12,
-    width: 40,
-  },
-  progressBar: {
-    flex: 1,
-    height: 4,
-    backgroundColor: 'rgba(255, 255, 255, 0.3)',
-    borderRadius: 2,
-    marginHorizontal: 5,
-  },
-  progressFill: {
-    height: '100%',
-    backgroundColor: '#FF6B6B',
-    borderRadius: 2,
+    justifyContent: 'space-between',
+    paddingHorizontal: 15,
+    paddingVertical: 10,
   },
   controlButtonsRow: {
     flexDirection: 'row',
+    alignItems: 'center',
+  },
+  circleButton: {
+    width: 46,
+    height: 46,
+    borderRadius: 25,
+    borderWidth: 1,
+    borderColor: 'white',
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 15,
+    marginRight: 10,
   },
-  controlButton: {
-    padding: 10,
-    marginHorizontal: 8,
-  },
-  playButton: {
-    padding: 12,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    borderRadius: 30,
-    marginHorizontal: 20,
-    width: 50,
-    height: 50,
-    justifyContent: 'center',
+  timeDisplay: {
+    flex: 1,
     alignItems: 'center',
   },
-  skipButtonContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  videoCounter: {
+  timeText: {
     color: 'white',
     fontSize: 14,
-    textAlign: 'center',
+  },
+  settingsContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   swipeIndicator: {
     position: 'absolute',
@@ -611,6 +763,77 @@ const styles = StyleSheet.create({
     left: 20,
     zIndex: 10,
     padding: 10,
+  },
+  miniPlayerContainer: {
+    position: 'absolute',
+    bottom: 10,
+    right: 1,
+    width: 409,
+    height: 300,
+    backgroundColor: '#000',
+    borderRadius: 8,
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  miniPlayerVideo: {
+    width: '100%',
+    height: '100%',
+    backgroundColor: '#000',
+    resizeMode: 'contain',
+  },
+
+
+
+  miniPlayerTopBar: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    padding: 10,
+    backgroundColor: 'rgba(0,0,0,0.3)',
+  },
+  miniPlayerExpand: {
+    padding: 5,
+  },
+  miniPlayerClose: {
+    padding: 5,
+  },
+  miniPlayerVideoContainer: {
+    flex: 1,
+    backgroundColor: 'black',
+  },
+  miniPlayerProgressContainer: {
+    paddingHorizontal: 0,
+    paddingVertical: 0,
+  },
+  miniPlayerSlider: {
+    width: '100%',
+    height: 40,
+  },
+  miniPlayerControlsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 15,
+    paddingVertical: 10,
+    backgroundColor: 'rgba(0,0,0,0.3)',
+  },
+  miniPlayerTimeText: {
+    color: 'white',
+    fontSize: 12,
+  },
+  miniPlayerButtonGroup: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  miniPlayerControlButton: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginHorizontal: 5,
   },
 });
 
