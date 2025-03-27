@@ -1,10 +1,16 @@
 // src/components/AudioPlayerModal.tsx
 
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect, useCallback } from 'react';
 import { Modal, View, Text, TouchableOpacity, StyleSheet, SafeAreaView, ScrollView } from 'react-native';
 import Slider from '@react-native-community/slider';
 import Icon from 'react-native-vector-icons/FontAwesome';
-import Sound from 'react-native-sound';
+import TrackPlayer, {
+  State,
+  Event,
+  Track,
+  useProgress,
+  usePlaybackState
+} from 'react-native-track-player';
 
 interface AudioPlayerModalProps {
   visible: boolean;
@@ -20,192 +26,104 @@ interface AudioPlayerModalProps {
   onChangeTrack?: (newIndex: number) => void;
 }
 
-const AudioPlayerModal: React.FC<AudioPlayerModalProps> = ({ visible, audioUri, fileDetails, onRequestClose, audioFiles = [],currentIndex = 0, onChangeTrack }) => {  
+const AudioPlayerModal: React.FC<AudioPlayerModalProps> = ({ visible, audioUri, fileDetails, onRequestClose, audioFiles = [], currentIndex = 0, onChangeTrack }) => {
 
-  const soundRef = useRef<Sound | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(0);
   const [volume, setVolume] = useState(0.7);
-  const [isSeeking, setIsSeeking] = useState(false);
-  const seekingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-
   const [showOptions, setShowOptions] = useState(false);
-  const [showDetails, setShowDetails] = useState(false); // State for showing file details
+  const [showDetails, setShowDetails] = useState(false);
 
+  const playbackState = usePlaybackState();
+  const progress = useProgress();
 
-  const playAudio = (audioPath: string) => {
+  const preparePlaylist = useCallback(async () => {
+    try {
+      // Reset current playlist
+      await TrackPlayer.reset();
 
-    // First, clean the path to ensure proper file protocol
-    const cleanPath = audioPath.replace('file://', '');
+      // Prepare tracks for playlist
+      const tracks: Track[] = audioFiles.map((file) => ({
+        url: file.path,
+        title: file.name.replace(/\.[^/.]+$/, ""),
+        artist: 'Unknown Artist',
+      }));
 
-    if (soundRef.current) {
-      soundRef.current.stop(() => {
-        soundRef.current = new Sound(cleanPath, '', (error) => {
-          if (error) {
-            console.log('Failed to load the sound', error);
-            return;
-          }
-          soundRef.current?.setCurrentTime(currentTime); // Resume from current time
-          soundRef.current?.play((success) => {
-            if (success) {
-              console.log('successfully finished playing');
-            } else {
-              console.log('playback failed due to audio decoding errors');
-            }
-            setIsPlaying(false);
-          });
-          setIsPlaying(true);
-          soundRef.current?.getCurrentTime((seconds) => setCurrentTime(seconds));
-          setDuration(soundRef.current?.getDuration() || 0);
-        });
-      });
+      // Add tracks to playlist
+      await TrackPlayer.add(tracks);
+
+      // Skip to current index
+      if (currentIndex !== undefined) {
+        await TrackPlayer.skip(currentIndex);
+      }
+
+      // Start playing
+      await TrackPlayer.play();
+    } catch (error) {
+      console.error('Error preparing playlist:', error);
+    }
+  }, [audioFiles, currentIndex]);
+
+  // Play/Pause toggle
+  const togglePlayPause = async () => {
+    const state = await TrackPlayer.getState();
+    if (state === State.Playing) {
+      await TrackPlayer.pause();
     } else {
-      soundRef.current = new Sound(cleanPath, '', (error) => {
-        if (error) {
-          console.log('Failed to load the sound', error);
-          return;
-        }
-        soundRef.current?.play((success) => {
-          if (success) {
-            console.log('successfully finished playing');
-          } else {
-            console.log('playback failed due to audio decoding errors');
-          }
-          setIsPlaying(false);
-        });
-        setIsPlaying(true);
-        soundRef.current?.getCurrentTime((seconds) => setCurrentTime(seconds));
-        setDuration(soundRef.current?.getDuration() || 0);
-      });
+      await TrackPlayer.play();
     }
   };
 
-  const pauseAudio = () => {
-    if (soundRef.current) {
-      soundRef.current.pause();
-      setIsPlaying(false);
+  // Skip forward/backward
+  const skipForward = async () => {
+    await TrackPlayer.seekTo(progress.position + 10);
+  };
+
+  const skipBackward = async () => {
+    await TrackPlayer.seekTo(Math.max(0, progress.position - 10));
+  };
+
+  // Play next song
+  const playNextSong = async () => {
+    if (audioFiles.length <= 1) return;
+    await TrackPlayer.skipToNext();
+    if (onChangeTrack) {
+      const nextIndex = (currentIndex + 1) % audioFiles.length;
+      onChangeTrack(nextIndex);
     }
   };
 
-  const stopAudio = () => {
-    if (soundRef.current) {
-      soundRef.current.stop();
-      soundRef.current = null;
-      setIsPlaying(false);
-      setCurrentTime(0);
-      setDuration(0);
+  // Play previous song
+  const playPreviousSong = async () => {
+    if (audioFiles.length <= 1) return;
+    await TrackPlayer.skipToPrevious();
+    if (onChangeTrack) {
+      const prevIndex = (currentIndex - 1 + audioFiles.length) % audioFiles.length;
+      onChangeTrack(prevIndex);
     }
   };
 
-  // const seekAudio = (seconds: number) => {
-  //   if (soundRef.current) {
-  //     soundRef.current.setCurrentTime(seconds);
-  //     setCurrentTime(seconds);
-  //   }
-  // };
-
-  const seekAudio = (seconds: number) => {
-    if (!soundRef.current) return;
-    
-    // Make sure we're not seeking beyond the bounds
-    const newTime = Math.max(0, Math.min(seconds, duration));
-    
-    // Set seeking flag to prevent interval updates during seek
-    setIsSeeking(true);
-    
-    // Update the sound position
-    soundRef.current.setCurrentTime(newTime);
-    
-    // Update UI immediately with the new time
-    setCurrentTime(newTime);
-    
-    // Clear any existing timeout
-    if (seekingTimeoutRef.current) {
-      clearTimeout(seekingTimeoutRef.current);
-    }
-    
-    // Set a timeout to reset the seeking flag
-    seekingTimeoutRef.current = setTimeout(() => {
-      setIsSeeking(false);
-      seekingTimeoutRef.current = null;
-    }, 200); // Small delay to prevent rapid seek issues
-  };
-
-  const skipForward = () => {
-    if (!soundRef.current) return;
-    
-    // Use the current time from the sound directly to ensure accuracy
-    soundRef.current.getCurrentTime((seconds) => {
-      const newTime = Math.min(seconds + 10, duration);
-      seekAudio(newTime);
-    });
-  };
-
-  const skipBackward = () => {
-    if (!soundRef.current) return;
-    
-    // Use the current time from the sound directly to ensure accuracy
-    soundRef.current.getCurrentTime((seconds) => {
-      const newTime = Math.max(seconds - 10, 0);
-      seekAudio(newTime);
-    });
-  };
-
-  const setAudioVolume = (value: number) => {
-    if (soundRef.current) {
-      soundRef.current.setVolume(value);
-      setVolume(value);
-    }
-  };
-
-   // Function to play next song
-   const playNextSong = () => {
-    if (audioFiles.length === 0 || currentIndex === undefined || !onChangeTrack) return;
-    
-    const nextIndex = (currentIndex + 1) % audioFiles.length;
-    onChangeTrack(nextIndex);
-  };
-
-  // Function to play previous song
-  const playPreviousSong = () => {
-    if (audioFiles.length === 0 || currentIndex === undefined || !onChangeTrack) return;
-    
-    const prevIndex = (currentIndex - 1 + audioFiles.length) % audioFiles.length;
-    onChangeTrack(prevIndex);
+  // Set volume
+  const setAudioVolume = async (value: number) => {
+    await TrackPlayer.setVolume(value);
+    setVolume(value);
   };
 
   useEffect(() => {
     if (visible) {
-      playAudio(audioUri);
+      preparePlaylist();
     }
-    return () => {
-      stopAudio();
-      // Cleanup any pending timeouts
-      if (seekingTimeoutRef.current) {
-        clearTimeout(seekingTimeoutRef.current);
-      }
-    };
-  }, [visible, audioUri]);
 
-  // useEffect(() => {
-  //   const interval = setInterval(() => {
-  //     if (soundRef.current && isPlaying) {
-  //       soundRef.current.getCurrentTime((seconds) => setCurrentTime(seconds));
-  //     }
-  //   }, 1000);
-  //   return () => clearInterval(interval);
-  // }, [isPlaying]);
+    // return () => {
+    //   TrackPlayer.reset();
+    // };
+  }, [visible, audioFiles, currentIndex, preparePlaylist]);
 
+  // Update playing state based on playback state
   useEffect(() => {
-    const interval = setInterval(() => {
-      if (soundRef.current && isPlaying && !isSeeking) {
-        soundRef.current.getCurrentTime((seconds) => setCurrentTime(seconds));
-      }
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [isPlaying, isSeeking]);
+    setIsPlaying(playbackState.state === State.Playing);
+  }, [playbackState]);
 
+  // Format time helper
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
@@ -213,7 +131,6 @@ const AudioPlayerModal: React.FC<AudioPlayerModalProps> = ({ visible, audioUri, 
   };
 
   const fileName = audioUri.split('/').pop() || 'Unknown Song';
-  // Remove file extension for display
   const songName = fileName.replace(/\.[^/.]+$/, "");
 
   // Check if navigation buttons should be enabled
@@ -231,7 +148,7 @@ const AudioPlayerModal: React.FC<AudioPlayerModalProps> = ({ visible, audioUri, 
                 <Icon name="arrow-left" size={24} color="white" />
               </TouchableOpacity>
               <Text style={styles.musicPlayerTitle}>Music Player</Text>
-              <TouchableOpacity onPress={() => setShowOptions(true)} style={{ padding: 5}}>
+              <TouchableOpacity onPress={() => setShowOptions(true)} style={{ padding: 5 }}>
                 <Icon name="ellipsis-v" size={24} color="white" />
               </TouchableOpacity>
             </View>
@@ -249,7 +166,7 @@ const AudioPlayerModal: React.FC<AudioPlayerModalProps> = ({ visible, audioUri, 
 
             {/* After user clicks on above displayed File info */}
             <Modal visible={showDetails} transparent={false} animationType="slide" onRequestClose={() => setShowDetails(false)}>
-              <View style={styles.detailsContainer}>
+              <ScrollView style={styles.detailsContainer}>
 
                 {/* Top 40% Section with Back Icon and Music Logo */}
                 <View style={styles.detailsTopSection}>
@@ -267,16 +184,16 @@ const AudioPlayerModal: React.FC<AudioPlayerModalProps> = ({ visible, audioUri, 
                 {/* Bottom 60% Details */}
                 <View style={styles.detailsBottomSection}>
                   <Text style={styles.detailTitle}>{songName}</Text>
-                  
+
                   {/* Music file container */}
                   <View style={styles.detailContainer}>
                     <Icon name="music" size={30} color="#777" style={styles.detailIcon} />
                     <View style={styles.detailTextContainer}>
                       <Text style={styles.detailItemBold}>{songName}</Text>
-                      <Text style={styles.detailItem}>{fileDetails?.size} MB  •  {formatTime(duration)}</Text>
+                      <Text style={styles.detailItem}>{fileDetails?.size} MB  •  {formatTime(progress.duration)}</Text>
                     </View>
                   </View>
-                  
+
                   {/* Date container */}
                   <View style={styles.detailContainer}>
                     <Icon name="calendar" size={30} color="#777" style={styles.detailIcon} />
@@ -285,7 +202,7 @@ const AudioPlayerModal: React.FC<AudioPlayerModalProps> = ({ visible, audioUri, 
                     </View>
                   </View>
                 </View>
-              </View>
+              </ScrollView>
             </Modal>
 
             {/* Music icon/album art */}
@@ -300,21 +217,18 @@ const AudioPlayerModal: React.FC<AudioPlayerModalProps> = ({ visible, audioUri, 
               <Slider
                 style={styles.progressBar}
                 minimumValue={0}
-                maximumValue={duration}
-                value={currentTime}
-                onSlidingStart={() => setIsSeeking(true)}
-                onValueChange={(value) => setCurrentTime(value)}
-                onSlidingComplete={(value) => {
-                  seekAudio(value);
+                maximumValue={progress.duration}
+                value={progress.position}
+                onSlidingComplete={async (value) => {
+                  await TrackPlayer.seekTo(value);
                 }}
-                // onValueChange={seekAudio}
                 minimumTrackTintColor="#FFFFFF"
                 maximumTrackTintColor="#555555"
                 thumbTintColor="#FFFFFF"
               />
               <View style={styles.timeContainer}>
-                <Text style={styles.timeText}>{formatTime(currentTime)}</Text>
-                <Text style={styles.timeText}>{formatTime(duration)}</Text>
+                <Text style={styles.timeText}>{formatTime(progress.position)}</Text>
+                <Text style={styles.timeText}>{formatTime(progress.duration)}</Text>
               </View>
             </View>
 
@@ -327,8 +241,8 @@ const AudioPlayerModal: React.FC<AudioPlayerModalProps> = ({ visible, audioUri, 
             {/* Player controls */}
             <View style={styles.playerControlsContainer}>
               <TouchableOpacity
-              onPress={playPreviousSong}
-              disabled={!hasMultipleSongs}>
+                onPress={playPreviousSong}
+                disabled={!hasMultipleSongs}>
                 <Icon name="step-backward" size={30} color={hasMultipleSongs ? "white" : "#555"} />
               </TouchableOpacity>
 
@@ -336,20 +250,20 @@ const AudioPlayerModal: React.FC<AudioPlayerModalProps> = ({ visible, audioUri, 
                 <Icon name="rotate-left" size={30} color="white" />
               </TouchableOpacity>
 
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.playPauseButton}
-                onPress={isPlaying ? pauseAudio : () => playAudio(audioUri)}
+                onPress={togglePlayPause}
               >
                 <Icon name={isPlaying ? 'pause' : 'play'} size={30} color="white" />
               </TouchableOpacity>
 
-              <TouchableOpacity onPress={skipForward}>  
+              <TouchableOpacity onPress={skipForward}>
                 <Icon name="rotate-right" size={30} color="white" />
               </TouchableOpacity>
 
               <TouchableOpacity
-              onPress={playNextSong}
-              disabled={!hasMultipleSongs}>
+                onPress={playNextSong}
+                disabled={!hasMultipleSongs}>
                 <Icon name="step-forward" size={30} color={hasMultipleSongs ? "white" : "#555"} />
               </TouchableOpacity>
 
@@ -405,7 +319,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: 15,
     paddingHorizontal: 15,
-    backgroundColor: '#444', 
+    backgroundColor: '#444',
     borderTopLeftRadius: 10,
     borderTopRightRadius: 10,
   },
@@ -465,9 +379,9 @@ const styles = StyleSheet.create({
     justifyContent: 'space-around',
     alignItems: 'center',
     marginBottom: 30,
-    backgroundColor: '#444', 
+    backgroundColor: '#444',
     paddingVertical: 15,
-    borderRadius: 10, 
+    borderRadius: 10,
   },
   playPauseButton: {
     width: 60,
@@ -483,7 +397,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     width: '100%',
     paddingHorizontal: 15,
-    backgroundColor: '#444', 
+    backgroundColor: '#444',
     paddingVertical: 10,
     borderRadius: 10,
   },
