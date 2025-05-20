@@ -11,8 +11,10 @@ import {
   StatusBar,
   StyleSheet,
   SafeAreaView,
-  ScrollView
+  ScrollView,
+  TouchableWithoutFeedback
 } from 'react-native';
+import { OrientationLocker } from 'react-native-orientation-locker';
 import Video, { VideoRef } from 'react-native-video';
 import Icon from 'react-native-vector-icons/FontAwesome';
 import {
@@ -66,6 +68,26 @@ const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
 
   const [lastKnownTimestamp, setLastKnownTimestamp] = useState(0);
 
+  const [volume, setVolume] = useState(0.7);
+  const [isVolumeSliderVisible, setVolumeSliderVisible] = useState(false);
+
+  // Set volume
+  const setAudioVolume = useCallback((value: number) => {
+    setVolume(value);
+  }, []);
+
+  const toggleVolumeSlider = useCallback(() => {
+    setVolumeSliderVisible(prev => !prev);
+    
+    // Hide other UI elements when volume slider is shown
+    if (!isVolumeSliderVisible && showOptions) {
+      setShowOptions(false);
+    }
+    
+    // Reset auto-hide timer for controls when toggling volume
+    showControlsTemporarily();
+  }, [isVolumeSliderVisible, showOptions]);
+  
   // Get the current video URI
   const getCurrentVideoUri = useCallback(() => {
     if (videoFiles.length > 0) {
@@ -118,20 +140,28 @@ const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
     // Set new timeout to hide controls
     controlsTimeoutRef.current = setTimeout(() => {
       setIsControlsVisible(false);
+      // Also hide volume slider when controls disappear
+      if (isVolumeSliderVisible) {
+        setVolumeSliderVisible(false);
+      }
     }, 3000);
-  }, []);
+  }, [isVolumeSliderVisible]);
 
   // Toggle controls visibility
   const toggleControls = useCallback(() => {
     if (isControlsVisible) {
       setIsControlsVisible(false);
+      // Also hide volume slider when controls are hidden
+      if (isVolumeSliderVisible) {
+        setVolumeSliderVisible(false);
+      }
       if (controlsTimeoutRef.current) {
         clearTimeout(controlsTimeoutRef.current);
       }
     } else {
       showControlsTemporarily();
     }
-  }, [isControlsVisible, showControlsTemporarily]);
+  }, [isControlsVisible, showControlsTemporarily, isVolumeSliderVisible]);
 
   // Toggle play/pause state
   const togglePlayPause = useCallback(() => {
@@ -198,7 +228,7 @@ const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
     setIsSeeking(false);
     setIsPlaying(isPlaying);
     showControlsTemporarily();
-  }, [showControlsTemporarily]);
+  }, [isPlaying, showControlsTemporarily]);
 
   // Handle swipe gestures for navigating between videos
   const handleSwipe = useCallback((event: any) => {
@@ -267,14 +297,12 @@ const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
   const toggleMiniPlayerMode = useCallback(() => {
     setMiniPlayerMode(!miniPlayerMode);
     setIsControlsVisible(false);
-  }, [miniPlayerMode]);
 
-  // Close mini player
-  const closeMiniPlayer = useCallback(() => {
-    if (miniPlayerMode) {
-      onRequestClose();
+    // Hide volume slider when switching to mini player
+    if (isVolumeSliderVisible) {
+      setVolumeSliderVisible(false);
     }
-  }, [miniPlayerMode, onRequestClose]);
+  }, [miniPlayerMode, isVolumeSliderVisible]);
 
   // Initialize controls and cleanup on mount/unmount
   useEffect(() => {
@@ -294,10 +322,31 @@ const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
     setLastKnownTimestamp(0);
   }, [currentVideoIndex]);
 
+  const renderVerticalVolumeSlider = () => {
+    return (
+      <TouchableWithoutFeedback onPress={(e) => e.stopPropagation()}>
+        <View style={styles.verticalVolumeContainer}>
+          <Slider
+            style={styles.verticalVolumeSlider}
+            minimumValue={0}
+            maximumValue={1}
+            value={volume}
+            onValueChange={setAudioVolume}
+            onSlidingComplete={setAudioVolume}
+            minimumTrackTintColor="#A020F0"
+            maximumTrackTintColor="rgba(255, 255, 255, 0.3)"
+            thumbTintColor="#FFFFFF"
+          />
+        </View>
+      </TouchableWithoutFeedback>
+    );
+  };
+
   // Render mini player UI
   const renderMiniPlayer = () => {
     return (
       <View style={styles.miniPlayerContainer}>
+        { <OrientationLocker orientation="PORTRAIT" />}
         <View style={styles.miniPlayerTopBar}>
           <TouchableOpacity
             onPress={toggleMiniPlayerMode}
@@ -322,6 +371,7 @@ const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
             resizeMode="contain"
             paused={!isPlaying}
             repeat={false}
+            volume={volume}
             onProgress={handleProgress}
             onLoad={handleLoad}
           />
@@ -381,6 +431,8 @@ const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
   // Main render
   return (
     <Modal visible={visible} animationType="fade" transparent={true} onRequestClose={onRequestClose}>
+      {/* OrientationLocker to force landscape mode */}
+      {visible && <OrientationLocker orientation={miniPlayerMode ? "PORTRAIT" : "LANDSCAPE"} />}
       <StatusBar hidden={!miniPlayerMode} />
 
       {miniPlayerMode ? (
@@ -402,6 +454,7 @@ const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
                   paused={!isPlaying}
                   controls={false}
                   repeat={false}
+                  volume={volume}
                   onProgress={handleProgress}
                   onLoad={handleLoad}
                 />
@@ -441,87 +494,65 @@ const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
                     )}
 
                     {/* Center play/pause button */}
-                    <TouchableOpacity
-                      onPress={togglePlayPause}
-                      style={styles.centerPlayButton}
-                    >
-                      <Icon name={isPlaying ? "pause" : "play"} size={40} color="white" />
-                    </TouchableOpacity>
+                    <View style={styles.centerControlsContainer}>
+                      <TouchableOpacity 
+                        onPress={skipBackward}
+                        style={styles.centerSideButton}
+                      >
+                        <Icon name="backward" size={30} color="white" />
+                      </TouchableOpacity>
+                      
+                      <TouchableOpacity
+                        onPress={togglePlayPause}
+                        style={styles.centerPlayButton}
+                      >
+                        <Icon name={isPlaying ? "pause" : "play"} size={40} color="white" />
+                      </TouchableOpacity>
+                      
+                      <TouchableOpacity 
+                        onPress={skipForward}
+                        style={styles.centerSideButton}
+                      >
+                        <Icon name="forward" size={30} color="white" />
+                      </TouchableOpacity>
+                    </View>
 
-                    {/* Bottom controls */}
+                    {/* Bottom controls - New single rectangle bar */}
                     <View style={styles.videoControlsFooter}>
-                      {/* Progress Bar - Using React Native Slider */}
-                      <View style={styles.progressContainer}>
-                        <Slider
-                          style={styles.slider}
-                          minimumValue={0}
-                          maximumValue={duration > 0 ? duration : 1}
-                          value={isSeeking ? seekValue : currentTime}
-                          minimumTrackTintColor="white"
-                          maximumTrackTintColor="rgba(255, 255, 255, 0.3)"
-                          thumbTintColor="white"
-                          onSlidingStart={handleSeekStart}
-                          onValueChange={handleSeekChange}
-                          onSlidingComplete={handleSeekComplete}
-                        />
-                      </View>
-
-                      {/* Controls and Time Display */}
-                      <View style={styles.controlsTimeContainer}>
-                        {/* Control Buttons */}
-                        <View style={styles.controlButtonsRow}>
-                          <TouchableOpacity style={styles.circleButton} onPress={togglePlayPause}>
+                      <View style={styles.controlsBackgroundContainer}>
+                        <View style={styles.singleControlBar}>
+                          {/* Play/Pause Button */}
+                          <TouchableOpacity style={styles.controlBarButton} onPress={togglePlayPause}>
                             <Icon name={isPlaying ? "pause" : "play"} size={20} color="white" />
                           </TouchableOpacity>
-
-                          {/* {videoFiles.length > 1 && currentVideoIndex > 0 && (
-                            <TouchableOpacity
-                              style={styles.circleButton}
-                              onPress={() => setCurrentVideoIndex(prevIndex => prevIndex - 1)}
-                            >
-                              <Icon name="step-backward" size={18} color="white" />
-                            </TouchableOpacity>
-                          )} */}
-
-                          <TouchableOpacity
-                            style={styles.circleButton}
-                            onPress={skipBackward}
-                          >
-                            <Icon name="backward" size={18} color="white" />
-                          </TouchableOpacity>
-
-                          <TouchableOpacity
-                            style={styles.circleButton}
-                            onPress={skipForward}
-                          >
-                            <Icon name="forward" size={18} color="white" />
-                          </TouchableOpacity>
-
-                          {/* {videoFiles.length > 1 && currentVideoIndex < videoFiles.length - 1 && (
-                            <TouchableOpacity
-                              style={styles.circleButton}
-                              onPress={() => setCurrentVideoIndex(prevIndex => prevIndex + 1)}
-                            >
-                              <Icon name="step-forward" size={18} color="white" />
-                            </TouchableOpacity>
-                          )} */}
-                        </View>
-
-                        {/* Time Display */}
-                        <View style={styles.timeDisplay}>
-                          <Text style={styles.timeText}>
+                          
+                          {/* Slider */}
+                          <Slider
+                            style={styles.controlBarSlider}
+                            minimumValue={0}
+                            maximumValue={duration > 0 ? duration : 1}
+                            value={isSeeking ? seekValue : currentTime}
+                            minimumTrackTintColor="white"
+                            maximumTrackTintColor="rgba(255, 255, 255, 0.3)"
+                            thumbTintColor="white"
+                            onSlidingStart={handleSeekStart}
+                            onValueChange={handleSeekChange}
+                            onSlidingComplete={handleSeekComplete}
+                          />
+                          
+                          {/* Time Display */}
+                          <Text style={styles.controlBarTimeText}>
                             {isSeeking ? formatTime(seekValue) : formatTime(currentTime)} / {formatTime(duration)}
                           </Text>
-                        </View>
-
-                        {/* Settings Button */}
-                        <View style={styles.settingsContainer}>
-                          <TouchableOpacity style={styles.circleButton}>
-                            <Icon name="cog" size={20} color="white" />
+                          
+                          {/* Volume Icon */}
+                          <TouchableOpacity style={styles.controlBarButton} onPress={toggleVolumeSlider}>
+                            <Icon name="volume-up" size={20} color="white" />
                           </TouchableOpacity>
-
-                          <TouchableOpacity
-                            style={styles.circleButton}
+                          
+                          {/* Mini Player Icon */}
+                          <TouchableOpacity 
+                            style={styles.controlBarButton}
                             onPress={toggleMiniPlayerMode}
                           >
                             <Icon name="compress" size={18} color="white" />
@@ -529,6 +560,8 @@ const VideoPlayerModal: React.FC<VideoPlayerModalProps> = ({
                         </View>
                       </View>
                     </View>
+                    {/* Vertical Volume Slider */}
+                    {isVolumeSliderVisible && renderVerticalVolumeSlider()}
                   </View>
                 )}
               </TouchableOpacity>
@@ -622,13 +655,19 @@ const styles = StyleSheet.create({
   },
   centerPlayButton: {
     alignSelf: 'center',
-    padding: 15,
-    borderRadius: 40,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    alignItems: 'center',
+    padding: 20,
+    borderRadius: 20,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    paddingLeft: 30,
+    paddingRight: 30,
+    marginHorizontal: 30,
   },
   videoControlsFooter: {
-    marginBottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    marginBottom: 10,
+    backgroundColor: 'rgba(39, 35, 35, 0.7)',
+    marginStart: 30,
+    marginEnd: 30,
   },
   progressContainer: {
     paddingHorizontal: 5,
@@ -637,17 +676,6 @@ const styles = StyleSheet.create({
   slider: {
     width: '100%',
     height: 60,
-  },
-  controlsTimeContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 15,
-    paddingVertical: 10,
-  },
-  controlButtonsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
   },
   circleButton: {
     width: 46,
@@ -659,18 +687,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 10,
-  },
-  timeDisplay: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  timeText: {
-    color: 'white',
-    fontSize: 14,
-  },
-  settingsContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
   },
   swipeIndicator: {
     position: 'absolute',
@@ -686,13 +702,13 @@ const styles = StyleSheet.create({
   },
   optionsContainer: {
     position: 'absolute',
-    top: 60,
-    right: 10,
+    top: 0,
+    right: 35,
     backgroundColor: '#333',
     paddingVertical: 15,
     paddingHorizontal: 15,
     borderRadius: 8,
-    width: 150,
+    width: 100,
     elevation: 5,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -704,7 +720,7 @@ const styles = StyleSheet.create({
     color: 'white',
     fontSize: 16,
     paddingVertical: 8,
-    textAlign: 'left',
+    textAlign: 'center',
   },
   detailsContainer: {
     flex: 1,
@@ -785,9 +801,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#000',
     resizeMode: 'contain',
   },
-
-
-
   miniPlayerTopBar: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -835,6 +848,70 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginHorizontal: 5,
   },
+  controlsBackgroundContainer: {
+    backgroundColor: 'rgba(129, 124, 124, 0.1)', // Grey shaded background
+    paddingVertical: 10,
+    paddingHorizontal: 10,
+  },
+  centerControlsContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'absolute',
+    top: '50%',
+    left: 0,
+    right: 0,
+    bottom: 100,
+    transform: [{ translateY: -25 }],
+  },
+  centerSideButton: {
+    padding: 20,
+    borderRadius: 15,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+  },
+  singleControlBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '100%',
+  },
+  controlBarButton: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: 20,
+  },
+  controlBarSlider: {
+    flex: 1,
+    marginHorizontal: 10,
+    height: 40,
+  },
+  controlBarTimeText: {
+    color: 'white',
+    fontSize: 14,
+    marginHorizontal: 10,
+    minWidth: 90,
+    textAlign: 'center',
+  },
+  verticalVolumeContainer: {
+    position: 'absolute',
+    bottom: 80, // Position above the control bar
+    right: 70, // Position near the volume button
+    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+    padding: 10,
+    borderRadius: 10,
+    alignItems: 'center',
+    width: 40, // Narrow container for vertical slider
+    height: 200, // Height for the vertical slider
+    justifyContent: 'center',
+    zIndex: 1000,
+  },
+  verticalVolumeSlider: {
+    width: 200, // Take full width of the container
+    height: 40,
+    transform: [{ rotate: '-90deg' }]
+  }
 });
 
 export default VideoPlayerModal;

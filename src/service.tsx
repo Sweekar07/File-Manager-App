@@ -1,33 +1,5 @@
 // src/service.tsx
 
-// import TrackPlayer, { Event } from 'react-native-track-player';
-
-// export async function PlayBackService() {
-//   try {
-//     TrackPlayer.addEventListener(Event.RemotePlay, () => TrackPlayer.play());
-//     TrackPlayer.addEventListener(Event.RemotePause, () => TrackPlayer.pause());
-    
-//     TrackPlayer.addEventListener(Event.RemoteNext, async () => {
-//       await TrackPlayer.skipToNext();
-//     });
-    
-//     TrackPlayer.addEventListener(Event.RemotePrevious, async () => {
-//       await TrackPlayer.skipToPrevious();
-//     });
-
-//     TrackPlayer.addEventListener(Event.RemoteStop, () => TrackPlayer.stop());
-
-//     TrackPlayer.addEventListener(Event.RemoteSeek, async (event) => {
-//       await TrackPlayer.seekTo(event.position);
-//     });
-//   } catch (error) {
-//     console.error('Error in PlayBackService:', error);
-//   }
-// }
-
-
-// src/service.tsx
-
 import TrackPlayer, { Event } from 'react-native-track-player';
 
 export async function PlayBackService() {

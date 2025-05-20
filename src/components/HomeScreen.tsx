@@ -27,7 +27,7 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ navigation }) => {
     { name: 'Photos', icon: 'image', count: 'Loading...', extensions: /\.(jpg|jpeg|png|gif|bmp|webp)$/i },
     { name: 'Videos', icon: 'video-camera', count: 'Loading...', extensions: /\.(mp4|mkv|avi|mov|flv|wmv)$/i },
     { name: 'Audio', icon: 'music', count: 'Loading...', extensions: /\.(mp3|wav|ogg|m4a|flac)$/i },
-    { name: 'Documents', icon: 'file-text', count: 'Loading...', extensions: /\.(pdf|doc|docx|xls|xlsx|ppt|pptx|txt)$/i },
+    { name: 'Documents', icon: 'file-text', count: 'Loading...', extensions: /\.(pdf|doc|docx|xls|xlsx|ppt|pptx|txt|html)$/i },
     { name: 'APKs', icon: 'android', count: 'Loading...', extensions: /\.(apk)$/i },
     { name: 'Archives', icon: 'archive', count: 'Loading...', extensions: /\.(zip|rar|tar|7z|gz)$/i },
   ]);

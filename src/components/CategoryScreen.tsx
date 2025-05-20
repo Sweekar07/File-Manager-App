@@ -12,6 +12,8 @@ import VideoPlayerModal from './VideoPlayerModal';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import ImageView from 'react-native-image-viewing';
 import BottomsheetModal from './BottomSheet';
+import { OrientationLocker } from 'react-native-orientation-locker';
+import DocumentViewer from './DocumentModule/DocumentViewer';
 
 interface File {
   name: string;
@@ -106,13 +108,15 @@ const CategoryScreen: React.FC<CategoryScreenProps> = ({ route, navigation }) =>
   const [currentAudioIndex, setCurrentAudioIndex] = useState<number>(0);
   const [currentVideoIndex, setCurrentVideoIndex] = useState<number>(0);
 
+  const [documentFile, setDocumentFile] = useState<{ path: string , name: string} | null>(null);
+
   // Memoized file type and category matching functions
   const getFileType = useCallback((fileName: string): File['type'] => {
     const lowerName = fileName.toLowerCase();
     if (/\.(jpg|jpeg|png|gif|bmp|webp)$/i.test(lowerName)) return 'image';
     if (/\.(mp3|wav|aac|flac)$/i.test(lowerName)) return 'audio';
     if (/\.(mp4|mkv|avi)$/i.test(lowerName)) return 'video';
-    if (/\.(pdf|doc|docx|txt|rtf)$/i.test(lowerName)) return 'document';
+    if (/\.(pdf|doc|docx|txt|rtf|html)$/i.test(lowerName)) return 'document';
     if (/\.apk$/i.test(lowerName)) return 'apk';
     if (/\.(zip|rar|7z|tar|gz)$/i.test(lowerName)) return 'archive';
     return 'document';
@@ -124,7 +128,7 @@ const CategoryScreen: React.FC<CategoryScreenProps> = ({ route, navigation }) =>
       case 'Photos': return /\.(jpg|jpeg|png|gif|bmp|webp)$/i.test(lowerName);
       case 'Audio': return /\.(mp3|wav|aac|flac)$/i.test(lowerName);
       case 'Videos': return /\.(mp4|mkv|avi)$/i.test(lowerName);
-      case 'Documents': return /\.(pdf|doc|docx|txt)$/i.test(lowerName);
+      case 'Documents': return /\.(pdf|doc|docx|txt|html)$/i.test(lowerName);
       case 'APKs': return /\.apk$/i.test(lowerName);
       case 'Archives': return /\.(zip|rar|7z|tar|gz)$/i.test(lowerName);
       default: return false;
@@ -316,8 +320,6 @@ const CategoryScreen: React.FC<CategoryScreenProps> = ({ route, navigation }) =>
   }, [route.params.title, discoverFolders]);
 
   const openFile = (filePath: string, type: File['type']) => {
-    // setSelectedFile(`file://${filePath}`);
-    // setFileType(type);
     if (type === 'image') {
       // Find the index of the selected image in image files
       const imageFiles = files.filter(file => file.type === 'image');
@@ -344,10 +346,21 @@ const CategoryScreen: React.FC<CategoryScreenProps> = ({ route, navigation }) =>
       setCurrentVideoIndex(index);
       setSelectedFile(`file://${filePath}`);
       setFileType(type);
+    } else if (type === 'document') {
+      // New document handling logic
+      setDocumentFile({
+        path: `file://${filePath}`,
+        name: filePath.split('/').pop() || 'Unknown'
+      });
     } else {
       setSelectedFile(`file://${filePath}`);
       setFileType(type);
     }
+  };
+
+  // Add a handler to close the document viewer
+  const closeDocumentViewer = () => {
+    setDocumentFile(null);
   };
 
   const closeModal = () => {
@@ -420,26 +433,79 @@ const CategoryScreen: React.FC<CategoryScreenProps> = ({ route, navigation }) =>
     }
   };
 
-  const renderFile = ({ item }: { item: File }) => (
-    <TouchableOpacity
-      style={styles.fileItem}
-      onPress={() => openFile(item.path, item.type)}
-    >
-      <Icon
-        name={
-          item.type === 'image' ? 'file-image-o' :
-            item.type === 'audio' ? 'file-audio-o' :
-              item.type === 'video' ? 'file-video-o' :
-                item.type === 'apk' ? 'android' :
-                  item.type === 'archive' ? 'file-archive-o' :
-                    'file-text-o'
-        }
-        size={30}
-        color="#666"
-      />
-      <Text style={styles.fileName}>{item.name}</Text>
-    </TouchableOpacity>
-  );
+  const renderFile = ({ item }: { item: File }) => {
+    // Function to get document icon and color
+    const getDocumentIconInfo = (fileName: string) => {
+      const extension = fileName.toLowerCase().split('.').pop();
+      
+      switch (extension) {
+        case 'pdf':
+          return { icon: 'file-pdf-o', color: '#FF0000' }; // Red for PDF
+        case 'doc':
+        case 'docx':
+          return { icon: 'file-word-o', color: '#2B579A' }; // Word blue
+        case 'xls':
+        case 'xlsx':
+          return { icon: 'file-excel-o', color: '#217346' }; // Excel green
+        case 'ppt':
+        case 'pptx':
+          return { icon: 'file-powerpoint-o', color: '#D24726' }; // PowerPoint orange
+        case 'txt':
+          return { icon: 'file-text-o', color: '#666666' }; // Grey for text
+        case 'html':
+        case 'htm':
+          return { icon: 'html5', color: '#E34F26' }; // HTML orange
+        case 'csv':
+          return { icon: 'table', color: '#217346' }; // Same as Excel
+        case 'rtf':
+          return { icon: 'file-text-o', color: '#666666' }; // Grey for RTF
+        default:
+          return { icon: 'file-o', color: '#666666' }; // Default grey
+      }
+    };
+  
+    // Get icon info based on file type
+    let iconInfo = { icon: '', color: '#666666' };
+    
+    if (item.type === 'document') {
+      iconInfo = getDocumentIconInfo(item.name);
+    } else {
+      // Use existing logic for other file types with colors
+      switch(item.type) {
+        case 'image':
+          iconInfo = { icon: 'file-image-o', color: '#3498DB' }; // Blue for images
+          break;
+        case 'audio':
+          iconInfo = { icon: 'file-audio-o', color: '#9B59B6' }; // Purple for audio
+          break;
+        case 'video':
+          iconInfo = { icon: 'file-video-o', color: '#E74C3C' }; // Red for video
+          break;
+        case 'apk':
+          iconInfo = { icon: 'android', color: '#A4C639' }; // Android green
+          break;
+        case 'archive':
+          iconInfo = { icon: 'file-archive-o', color: '#F39C12' }; // Orange for archives
+          break;
+        default:
+          iconInfo = { icon: 'file-o', color: '#666666' };
+      }
+    }
+  
+    return (
+      <TouchableOpacity
+        style={styles.fileItem}
+        onPress={() => openFile(item.path, item.type)}
+      >
+        <Icon
+          name={iconInfo.icon}
+          size={30}
+          color={iconInfo.color}
+        />
+        <Text style={styles.fileName}>{item.name}</Text>
+      </TouchableOpacity>
+    );
+  };
 
   const renderFolder = ({ item }: { item: Folder }) => (
     <TouchableOpacity
@@ -472,7 +538,7 @@ const CategoryScreen: React.FC<CategoryScreenProps> = ({ route, navigation }) =>
     if (selectedFolder === null) {
       // Show folder list for Photos, otherwise show files
       console.log("route params title: ", route.params.title);
-      if (['Photos', 'Videos', 'Audio', 'APKs', 'Archives'].includes(route.params.title)) {
+      if (['Photos', 'Videos', 'Audio', 'Documents', 'APKs', 'Archives'].includes(route.params.title)) {
         return folders.length > 0 ? (
           <FlatList
             data={folders}
@@ -553,7 +619,7 @@ const CategoryScreen: React.FC<CategoryScreenProps> = ({ route, navigation }) =>
 
   return (
     <View style={styles.container}>
-
+      { <OrientationLocker orientation="PORTRAIT" />}
       {renderContent}
 
       {/* Advanced Image Viewer with Swipe and Header */}
@@ -641,6 +707,15 @@ const CategoryScreen: React.FC<CategoryScreenProps> = ({ route, navigation }) =>
           videoFiles={files.filter(file => file.type === 'video') as { name: string; path: string; type: 'video'; }[]}
           currentIndex={currentVideoIndex}
         />
+      )}
+
+      {/* New Document Viewer Component */}
+      {documentFile && (
+        <DocumentViewer
+          visible={!!documentFile}
+          filePath={documentFile.path}
+          fileName={documentFile.name}
+          onClose={closeDocumentViewer} />
       )}
     </View>
   );
